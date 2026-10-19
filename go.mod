@@ -5,6 +5,8 @@ go 1.26.8
 require (
 	github.com/IBM/fp-go/v2 v2.10.0
 	github.com/dictyBase/fp-go-loom v0.0.0-20261017160436-45e4f096bd46
+	github.com/go-chi/chi/v5 v5.5.0
+	github.com/go-chi/cors v1.2.2
 	github.com/hasura/go-graphql-client v0.16.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/stretchr/testify v1.12.1
