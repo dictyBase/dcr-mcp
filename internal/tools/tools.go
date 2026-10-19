@@ -42,21 +42,6 @@ func executeAutocomplete(
 	})
 }
 
-func autocompletePipeline(
-	s autocompleteState,
-) toolCallOutcome[graphql.AutocompleteResult] {
-	return F.Pipe4(
-		IOE.Of[error](s),
-		IOE.ChainEitherK(validateAutocompleteState),
-		IOE.Chain(executeAutocomplete),
-		ioeutils.ToEither[error, graphql.AutocompleteResult],
-		E.Fold(
-			toOutcomeError[graphql.AutocompleteResult],
-			toOutcomeSuccess[graphql.AutocompleteResult],
-		),
-	)
-}
-
 func newAutocompleteHandler(
 	client *graphql.Client,
 ) mcp.ToolHandlerFor[AutocompleteStocksInput, graphql.AutocompleteResult] {
@@ -102,19 +87,6 @@ func executeSearch(s searchState) IOE.IOEither[error, graphql.SearchResult] {
 	})
 }
 
-func searchPipeline(s searchState) toolCallOutcome[graphql.SearchResult] {
-	return F.Pipe4(
-		IOE.Of[error](s),
-		IOE.ChainEitherK(validateSearchState),
-		IOE.Chain(executeSearch),
-		ioeutils.ToEither[error, graphql.SearchResult],
-		E.Fold(
-			toOutcomeError[graphql.SearchResult],
-			toOutcomeSuccess[graphql.SearchResult],
-		),
-	)
-}
-
 func newSearchHandler(
 	client *graphql.Client,
 ) mcp.ToolHandlerFor[SearchStocksInput, graphql.SearchResult] {
@@ -123,11 +95,20 @@ func newSearchHandler(
 		_ *mcp.CallToolRequest,
 		input SearchStocksInput,
 	) (*mcp.CallToolResult, graphql.SearchResult, error) {
-		out := searchPipeline(searchState{
-			ctx:    ctx,
-			client: client,
-			input:  input,
-		})
+		out := F.Pipe4(
+			IOE.Of[error](searchState{
+				ctx:    ctx,
+				client: client,
+				input:  input,
+			}),
+			IOE.ChainEitherK(validateSearchState),
+			IOE.Chain(executeSearch),
+			ioeutils.ToEither[error, graphql.SearchResult],
+			E.Fold(
+				toOutcomeError[graphql.SearchResult],
+				toOutcomeSuccess[graphql.SearchResult],
+			),
+		)
 		return out.Result, out.Output, out.Err
 	}
 }
@@ -149,19 +130,6 @@ func executeGetStrain(s strainState) IOE.IOEither[error, graphql.StrainDetail] {
 	})
 }
 
-func getStrainPipeline(s strainState) toolCallOutcome[graphql.StrainDetail] {
-	return F.Pipe4(
-		IOE.Of[error](s),
-		IOE.ChainEitherK(validateStrainState),
-		IOE.Chain(executeGetStrain),
-		ioeutils.ToEither[error, graphql.StrainDetail],
-		E.Fold(
-			toOutcomeError[graphql.StrainDetail],
-			toOutcomeSuccess[graphql.StrainDetail],
-		),
-	)
-}
-
 func newGetStrainHandler(
 	client *graphql.Client,
 ) mcp.ToolHandlerFor[GetStrainInput, graphql.StrainDetail] {
@@ -170,11 +138,20 @@ func newGetStrainHandler(
 		_ *mcp.CallToolRequest,
 		input GetStrainInput,
 	) (*mcp.CallToolResult, graphql.StrainDetail, error) {
-		out := getStrainPipeline(strainState{
-			ctx:    ctx,
-			client: client,
-			input:  input,
-		})
+		out := F.Pipe4(
+			IOE.Of[error](strainState{
+				ctx:    ctx,
+				client: client,
+				input:  input,
+			}),
+			IOE.ChainEitherK(validateStrainState),
+			IOE.Chain(executeGetStrain),
+			ioeutils.ToEither[error, graphql.StrainDetail],
+			E.Fold(
+				toOutcomeError[graphql.StrainDetail],
+				toOutcomeSuccess[graphql.StrainDetail],
+			),
+		)
 		return out.Result, out.Output, out.Err
 	}
 }
@@ -196,19 +173,6 @@ func executeGetPlasmid(s plasmidState) IOE.IOEither[error, graphql.PlasmidDetail
 	})
 }
 
-func getPlasmidPipeline(s plasmidState) toolCallOutcome[graphql.PlasmidDetail] {
-	return F.Pipe4(
-		IOE.Of[error](s),
-		IOE.ChainEitherK(validatePlasmidState),
-		IOE.Chain(executeGetPlasmid),
-		ioeutils.ToEither[error, graphql.PlasmidDetail],
-		E.Fold(
-			toOutcomeError[graphql.PlasmidDetail],
-			toOutcomeSuccess[graphql.PlasmidDetail],
-		),
-	)
-}
-
 func newGetPlasmidHandler(
 	client *graphql.Client,
 ) mcp.ToolHandlerFor[GetPlasmidInput, graphql.PlasmidDetail] {
@@ -217,11 +181,20 @@ func newGetPlasmidHandler(
 		_ *mcp.CallToolRequest,
 		input GetPlasmidInput,
 	) (*mcp.CallToolResult, graphql.PlasmidDetail, error) {
-		out := getPlasmidPipeline(plasmidState{
-			ctx:    ctx,
-			client: client,
-			input:  input,
-		})
+		out := F.Pipe4(
+			IOE.Of[error](plasmidState{
+				ctx:    ctx,
+				client: client,
+				input:  input,
+			}),
+			IOE.ChainEitherK(validatePlasmidState),
+			IOE.Chain(executeGetPlasmid),
+			ioeutils.ToEither[error, graphql.PlasmidDetail],
+			E.Fold(
+				toOutcomeError[graphql.PlasmidDetail],
+				toOutcomeSuccess[graphql.PlasmidDetail],
+			),
+		)
 		return out.Result, out.Output, out.Err
 	}
 }
@@ -249,21 +222,6 @@ func executeListPhenotypeStrains(
 	})
 }
 
-func listPhenotypeStrainsPipeline(
-	s phenotypeListState,
-) toolCallOutcome[graphql.PhenotypeStrainList] {
-	return F.Pipe4(
-		IOE.Of[error](s),
-		IOE.ChainEitherK(validatePhenotypeState),
-		IOE.Chain(executeListPhenotypeStrains),
-		ioeutils.ToEither[error, graphql.PhenotypeStrainList],
-		E.Fold(
-			toOutcomeError[graphql.PhenotypeStrainList],
-			toOutcomeSuccess[graphql.PhenotypeStrainList],
-		),
-	)
-}
-
 func newListPhenotypeStrainsHandler(
 	client *graphql.Client,
 ) mcp.ToolHandlerFor[ListStrainsWithPhenotypeInput, graphql.PhenotypeStrainList] {
@@ -272,11 +230,20 @@ func newListPhenotypeStrainsHandler(
 		_ *mcp.CallToolRequest,
 		input ListStrainsWithPhenotypeInput,
 	) (*mcp.CallToolResult, graphql.PhenotypeStrainList, error) {
-		out := listPhenotypeStrainsPipeline(phenotypeListState{
-			ctx:    ctx,
-			client: client,
-			input:  input,
-		})
+		out := F.Pipe4(
+			IOE.Of[error](phenotypeListState{
+				ctx:    ctx,
+				client: client,
+				input:  input,
+			}),
+			IOE.ChainEitherK(validatePhenotypeState),
+			IOE.Chain(executeListPhenotypeStrains),
+			ioeutils.ToEither[error, graphql.PhenotypeStrainList],
+			E.Fold(
+				toOutcomeError[graphql.PhenotypeStrainList],
+				toOutcomeSuccess[graphql.PhenotypeStrainList],
+			),
+		)
 		return out.Result, out.Output, out.Err
 	}
 }
