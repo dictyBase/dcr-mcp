@@ -63,19 +63,33 @@ func TestHTTPHandler(t *testing.T) {
 		require.Equal(t, "ok", body["status"])
 	})
 
-	t.Run("OPTIONS /mcp preflight returns 204 with CORS headers", func(t *testing.T) {
+	t.Run("OPTIONS /mcp preflight returns 200 with chi CORS headers", func(t *testing.T) {
 		req, err := http.NewRequest(http.MethodOptions, httpSrv.URL+"/mcp", nil)
 		require.NoError(t, err)
 		req.Header.Set("Origin", "https://stockcenter.dictybase.org")
 		req.Header.Set("Access-Control-Request-Method", "POST")
+		req.Header.Set("Access-Control-Request-Headers", "Content-Type, Mcp-Session-Id")
 
 		resp, err := httpSrv.Client().Do(req)
 		require.NoError(t, err)
 		defer func() { _ = resp.Body.Close() }()
 
-		require.Equal(t, http.StatusNoContent, resp.StatusCode)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
 		require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
 		require.Contains(t, resp.Header.Get("Access-Control-Allow-Headers"), "Mcp-Session-Id")
+	})
+
+	t.Run("GET /healthz with Origin returns ExposedHeaders from chi CORS", func(t *testing.T) {
+		req, err := http.NewRequest(http.MethodGet, httpSrv.URL+"/healthz", nil)
+		require.NoError(t, err)
+		req.Header.Set("Origin", "https://stockcenter.dictybase.org")
+
+		resp, err := httpSrv.Client().Do(req)
+		require.NoError(t, err)
+		defer func() { _ = resp.Body.Close() }()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"))
 		require.Contains(t, resp.Header.Get("Access-Control-Expose-Headers"), "Mcp-Session-Id")
 	})
 
