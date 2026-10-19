@@ -173,23 +173,19 @@ func serverFlags() []cli.Flag {
 	}
 }
 
-func newStartServerCommand() *cli.Command {
-	return &cli.Command{
-		Name:    "start-server",
-		Aliases: []string{"serve", "start"},
-		Usage:   "Start the dictyBase Stock Center Streamable HTTP MCP server",
-		Flags:   serverFlags(),
-		Action:  RunServer,
-	}
-}
-
 // NewApp constructs the root urfave/cli/v3 command for dcr-mcp.
 func NewApp() *cli.Command {
 	return &cli.Command{
 		Name:  "dcr-mcp",
 		Usage: "dictyBase Stock Center Model Context Protocol (MCP) server",
 		Commands: []*cli.Command{
-			newStartServerCommand(),
+			{
+				Name:    "start-server",
+				Aliases: []string{"serve", "start"},
+				Usage:   "Start the dictyBase Stock Center Streamable HTTP MCP server",
+				Flags:   serverFlags(),
+				Action:  RunServer,
+			},
 		},
 	}
 }
