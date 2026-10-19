@@ -65,11 +65,20 @@ func newAutocompleteHandler(
 		_ *mcp.CallToolRequest,
 		input AutocompleteStocksInput,
 	) (*mcp.CallToolResult, graphql.AutocompleteResult, error) {
-		out := autocompletePipeline(autocompleteState{
-			ctx:    ctx,
-			client: client,
-			input:  input,
-		})
+		out := F.Pipe4(
+			IOE.Of[error](autocompleteState{
+				ctx:    ctx,
+				client: client,
+				input:  input,
+			}),
+			IOE.ChainEitherK(validateAutocompleteState),
+			IOE.Chain(executeAutocomplete),
+			ioeutils.ToEither[error, graphql.AutocompleteResult],
+			E.Fold(
+				toOutcomeError[graphql.AutocompleteResult],
+				toOutcomeSuccess[graphql.AutocompleteResult],
+			),
+		)
 		return out.Result, out.Output, out.Err
 	}
 }
