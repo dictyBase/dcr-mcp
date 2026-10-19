@@ -1,4 +1,4 @@
-// Package server provides the Streamable HTTP MCP server, CORS middleware, and health endpoint.
+// Package server provides the Streamable HTTP MCP server, chi router, CORS middleware, and health endpoint.
 package server
 
 import (
@@ -12,15 +12,16 @@ import (
 	"time"
 
 	A "github.com/IBM/fp-go/v2/array"
-	E "github.com/IBM/fp-go/v2/either"
 	F "github.com/IBM/fp-go/v2/function"
 	IOE "github.com/IBM/fp-go/v2/ioeither"
 	O "github.com/IBM/fp-go/v2/option"
 	P "github.com/IBM/fp-go/v2/predicate"
 	predarrays "github.com/dictyBase/fp-go-loom/predicate/array"
-	predord "github.com/dictyBase/fp-go-loom/predicate/ord"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
 	"github.com/dictybase/dcr-mcp/internal/tools"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -28,10 +29,8 @@ const (
 	serverName        = "dcr-mcp"
 	serverVersion     = "1.0.0"
 	wildcardOrigin    = "*"
-	allowedMethods    = "GET, POST, DELETE, OPTIONS"
-	allowedHeaders    = "Content-Type, Accept, Authorization, Mcp-Session-Id, MCP-Protocol-Version, Last-Event-ID"
-	exposedHeaders    = "Mcp-Session-Id, MCP-Protocol-Version"
 	healthzBody       = `{"status":"ok"}`
+	corsMaxAgeSeconds = 300
 	readHeaderTimeout = 10 * time.Second
 	shutdownTimeout   = 5 * time.Second
 )
@@ -45,34 +44,9 @@ type Config struct {
 	AllowedOrigins  []string
 }
 
-type corsExchange struct {
-	writer  http.ResponseWriter
-	request *http.Request
-	next    http.Handler
+var isServerClosedErr = func(err error) bool {
+	return errors.Is(err, http.ErrServerClosed)
 }
-
-var (
-	isWildcardOrigin = predord.StrEq(wildcardOrigin)
-	isOptionsMethod  = predord.StrEq(http.MethodOptions)
-	isOptionsRequest = F.Pipe1(
-		isOptionsMethod,
-		P.ContraMap(func(ex corsExchange) string { return ex.request.Method }),
-	)
-	isServerClosedErr = func(err error) bool {
-		return errors.Is(err, http.ErrServerClosed)
-	}
-	corsArms = P.Fold(
-		func(ex corsExchange) struct{} {
-			ex.next.ServeHTTP(ex.writer, ex.request)
-			return struct{}{}
-		},
-		func(ex corsExchange) struct{} {
-			ex.writer.WriteHeader(http.StatusNoContent)
-			return struct{}{}
-		},
-	)
-	dispatchCORSRequest = F.Pipe1(isOptionsRequest, corsArms)
-)
 
 // NewMCPServer creates an mcp.Server registered with all dictyBase stock tools.
 func NewMCPServer(client *graphql.Client) *mcp.Server {
@@ -82,27 +56,6 @@ func NewMCPServer(client *graphql.Client) *mcp.Server {
 	}, nil)
 	tools.RegisterAll(srv, client)
 	return srv
-}
-
-func matchOrigin(allowed []string, reqOrigin string) string {
-	hasWildcard := F.Pipe1(allowed, A.Any(isWildcardOrigin))
-	matchesReq := F.Pipe2(
-		reqOrigin,
-		predord.StrEq,
-		func(pred P.Predicate[string]) bool {
-			return F.Pipe1(allowed, A.Any(pred))
-		},
-	)
-	return F.Pipe2(
-		allowed,
-		O.FromPredicate(func([]string) bool {
-			return !hasWildcard && matchesReq
-		}),
-		O.Fold(
-			F.Constant(wildcardOrigin),
-			F.Constant1[[]string](reqOrigin),
-		),
-	)
 }
 
 func normalizeOrigins(origins []string) []string {
@@ -115,19 +68,29 @@ func normalizeOrigins(origins []string) []string {
 	)
 }
 
-func withCORS(allowedOrigins []string, next http.Handler) http.Handler {
-	normalized := normalizeOrigins(allowedOrigins)
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		origin := matchOrigin(normalized, r.Header.Get("Origin"))
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Allow-Methods", allowedMethods)
-		w.Header().Set("Access-Control-Allow-Headers", allowedHeaders)
-		w.Header().Set("Access-Control-Expose-Headers", exposedHeaders)
-		_ = dispatchCORSRequest(corsExchange{
-			writer:  w,
-			request: r,
-			next:    next,
-		})
+func newCORSHandler(allowedOrigins []string) func(http.Handler) http.Handler {
+	return cors.Handler(cors.Options{
+		AllowedOrigins: normalizeOrigins(allowedOrigins),
+		AllowedMethods: []string{
+			http.MethodGet,
+			http.MethodPost,
+			http.MethodDelete,
+			http.MethodOptions,
+		},
+		AllowedHeaders: []string{
+			"Accept",
+			"Authorization",
+			"Content-Type",
+			"Last-Event-ID",
+			"Mcp-Session-Id",
+			"MCP-Protocol-Version",
+		},
+		ExposedHeaders: []string{
+			"Mcp-Session-Id",
+			"MCP-Protocol-Version",
+		},
+		AllowCredentials: true,
+		MaxAge:           corsMaxAgeSeconds,
 	})
 }
 
@@ -137,7 +100,7 @@ func healthzHandler(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(healthzBody))
 }
 
-// NewHTTPHandler constructs the HTTP mux serving /healthz and /mcp (Streamable HTTP + CORS).
+// NewHTTPHandler constructs the chi router serving /healthz and /mcp (Streamable HTTP + chi middlewares).
 func NewHTTPHandler(cfg Config) http.Handler {
 	gqlClient := graphql.NewClient(cfg.GraphQLEndpoint, nil)
 	mcpSrv := NewMCPServer(gqlClient)
@@ -151,10 +114,14 @@ func NewHTTPHandler(cfg Config) http.Handler {
 		},
 	)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", healthzHandler)
-	mux.Handle("/mcp", withCORS(cfg.AllowedOrigins, streamHandler))
-	return mux
+	corsMiddleware := newCORSHandler(cfg.AllowedOrigins)
+	router := chi.NewRouter()
+	router.Use(middleware.RequestID)
+	router.Use(middleware.Recoverer)
+	router.Use(corsMiddleware)
+	router.Get("/healthz", healthzHandler)
+	router.Handle("/mcp", streamHandler)
+	return router
 }
 
 func normalizeServeErr(err error) error {
@@ -200,10 +167,7 @@ func serveListener(
 			case err := <-errCh:
 				return struct{}{}, err
 			case <-ctx.Done():
-				shutCtx, cancel := context.WithTimeout(
-					context.Background(),
-					shutdownTimeout,
-				)
+				shutCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 				defer cancel()
 				_ = srv.Shutdown(shutCtx)
 				return struct{}{}, <-errCh
@@ -226,6 +190,3 @@ func ListenAndServe(ctx context.Context, cfg Config) IOE.IOEither[error, struct{
 		}),
 	)
 }
-
-// Ensure E is available for extensions.
-var _ = E.Of[error, struct{}]
