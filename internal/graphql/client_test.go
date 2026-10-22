@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	E "github.com/IBM/fp-go/v2/either"
@@ -292,4 +293,39 @@ func TestGeneQueries(t *testing.T) {
 		require.Equal(t, "Abstract text", got.Abstract)
 		require.Equal(t, "Smith", got.Authors[0].LastName)
 	})
+}
+
+func TestStrainCache(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"strain":{"id":"DBS1","label":"x","publications":[],"phenotypes":[]}}}`))
+	}))
+	defer srv.Close()
+
+	client := graphql.NewClient(srv.URL, srv.Client())
+	params := graphql.IDParams{Ctx: context.Background(), ID: "DBS1"}
+
+	_, err := E.Unwrap(ioeutils.ToEither(client.GetStrain(params)))
+	require.NoError(t, err)
+	_, err = E.Unwrap(ioeutils.ToEither(client.GetStrain(params)))
+	require.NoError(t, err)
+	require.EqualValues(t, 1, hits.Load(), "second lookup must be served from cache")
+}
+
+func TestStrainCacheSkipsErrors(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"errors":[{"message":"boom"}],"data":null}`))
+	}))
+	defer srv.Close()
+
+	client := graphql.NewClient(srv.URL, srv.Client())
+	params := graphql.IDParams{Ctx: context.Background(), ID: "DBS1"}
+	_, _ = E.Unwrap(ioeutils.ToEither(client.GetStrain(params)))
+	_, _ = E.Unwrap(ioeutils.ToEither(client.GetStrain(params)))
+	require.EqualValues(t, 2, hits.Load())
 }

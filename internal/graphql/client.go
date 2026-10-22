@@ -4,35 +4,43 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	A "github.com/IBM/fp-go/v2/array"
 	E "github.com/IBM/fp-go/v2/either"
 	EQ "github.com/IBM/fp-go/v2/eq"
 	F "github.com/IBM/fp-go/v2/function"
+	IO "github.com/IBM/fp-go/v2/io"
 	IOE "github.com/IBM/fp-go/v2/ioeither"
 	O "github.com/IBM/fp-go/v2/option"
 	P "github.com/IBM/fp-go/v2/predicate"
 	S "github.com/IBM/fp-go/v2/string"
 	predord "github.com/dictyBase/fp-go-loom/predicate/ord"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 	hasuragql "github.com/hasura/go-graphql-client"
 )
 
 const (
-	varQuery      = "query"
-	varLimit      = "limit"
-	varEntity     = "entity"
-	varID         = "id"
-	varCursor     = "cursor"
-	varType       = "type"
-	varAnnotation = "annotation"
-	phenotypeType = "phenotype"
-	varGene       = "gene"
-	notFoundCode  = "NotFound"
+	varQuery         = "query"
+	varLimit         = "limit"
+	varEntity        = "entity"
+	varID            = "id"
+	varCursor        = "cursor"
+	varType          = "type"
+	varAnnotation    = "annotation"
+	phenotypeType    = "phenotype"
+	varGene          = "gene"
+	notFoundCode     = "NotFound"
+	defaultCacheSize = 1024
+	defaultCacheTTL  = 10 * time.Minute
 )
 
-// Client wraps a hasura GraphQL client with functional IOEither query methods.
+// Client wraps a hasura GraphQL client with functional IOEither query methods
+// and a short-lived cache for single-record lookups.
 type Client struct {
-	gql *hasuragql.Client
+	gql          *hasuragql.Client
+	strainCache  *expirable.LRU[string, StrainDetail]
+	plasmidCache *expirable.LRU[string, PlasmidDetail]
 }
 
 func resolveHTTPClient(httpClient *http.Client) *http.Client {
@@ -47,8 +55,40 @@ func resolveHTTPClient(httpClient *http.Client) *http.Client {
 func NewClient(endpoint string, httpClient *http.Client) *Client {
 	resolved := resolveHTTPClient(httpClient)
 	return &Client{
-		gql: hasuragql.NewClient(endpoint, resolved),
+		gql:          hasuragql.NewClient(endpoint, resolved),
+		strainCache:  expirable.NewLRU[string, StrainDetail](defaultCacheSize, nil, defaultCacheTTL),
+		plasmidCache: expirable.NewLRU[string, PlasmidDetail](defaultCacheSize, nil, defaultCacheTTL),
 	}
+}
+
+func storeIn[V any](cache *expirable.LRU[string, V], key string) func(V) IO.IO[struct{}] {
+	return func(v V) IO.IO[struct{}] {
+		return func() struct{} {
+			cache.Add(key, v)
+			return struct{}{}
+		}
+	}
+}
+
+// cached serves key from cache, or runs load and stores a successful result.
+// IOE.Defer postpones the cache lookup until the IOEither runs.
+func cached[V any](
+	cache *expirable.LRU[string, V],
+	key string,
+	load IOE.IOEither[error, V],
+) IOE.IOEither[error, V] {
+	return IOE.Defer(func() IOE.IOEither[error, V] {
+		return F.Pipe2(
+			key,
+			O.FromValidation(cache.Get),
+			O.Fold(
+				func() IOE.IOEither[error, V] {
+					return F.Pipe1(load, IOE.ChainFirstIOK[error](storeIn(cache, key)))
+				},
+				IOE.Of[error, V],
+			),
+		)
+	})
 }
 
 // ListStockSuggestions executes the listStockSuggestions GraphQL query.
@@ -91,8 +131,7 @@ func (c *Client) SearchStocks(
 	)
 }
 
-// GetStrain executes the strain(id: $id) GraphQL query.
-func (c *Client) GetStrain(
+func (c *Client) getStrainUncached(
 	params IDParams,
 ) IOE.IOEither[error, StrainDetail] {
 	return F.Pipe2(
@@ -109,8 +148,12 @@ func (c *Client) GetStrain(
 	)
 }
 
-// GetPlasmid executes the plasmid(id: $id) GraphQL query.
-func (c *Client) GetPlasmid(
+// GetStrain executes the strain(id: $id) GraphQL query, served from cache when fresh.
+func (c *Client) GetStrain(params IDParams) IOE.IOEither[error, StrainDetail] {
+	return cached(c.strainCache, params.ID, c.getStrainUncached(params))
+}
+
+func (c *Client) getPlasmidUncached(
 	params IDParams,
 ) IOE.IOEither[error, PlasmidDetail] {
 	return F.Pipe2(
@@ -125,6 +168,11 @@ func (c *Client) GetPlasmid(
 		}),
 		IOE.Map[error](toPlasmidDetail),
 	)
+}
+
+// GetPlasmid executes the plasmid(id: $id) GraphQL query, served from cache when fresh.
+func (c *Client) GetPlasmid(params IDParams) IOE.IOEither[error, PlasmidDetail] {
+	return cached(c.plasmidCache, params.ID, c.getPlasmidUncached(params))
 }
 
 // ListStrainsWithPhenotype executes listStrainsWithAnnotation with type "phenotype".
