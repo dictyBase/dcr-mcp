@@ -14,7 +14,7 @@ const (
 	maxAutocompleteLimit     = 50
 	minAutocompleteQueryLen  = 3
 
-	defaultSearchLimit = 50
+	defaultSearchLimit = 15
 	maxSearchLimit     = 100
 	minSearchQueryLen  = 2
 
@@ -32,7 +32,7 @@ type AutocompleteStocksInput struct {
 // SearchStocksInput defines the JSON Schema parameters for search_stocks.
 type SearchStocksInput struct {
 	Query  string `json:"query" jsonschema:"Full stock search text (at least 2 characters)"`
-	Limit  int    `json:"limit,omitempty" jsonschema:"Maximum number of search results to return (default 50, 1-100)"`
+	Limit  int    `json:"limit,omitempty" jsonschema:"Maximum number of search results to return (default 15, 1-100)"`
 	Entity string `json:"entity,omitempty" jsonschema:"Stock entity filter: ALL, STRAIN, or PLASMID (default ALL)"`
 }
 

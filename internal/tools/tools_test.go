@@ -93,7 +93,7 @@ func TestValidateSearchInput(t *testing.T) {
 			name:       "two-char query allowed with defaults",
 			in:         tools.SearchStocksInput{Query: " cs "},
 			wantQuery:  "cs",
-			wantLimit:  50,
+			wantLimit:  15,
 			wantEntity: graphql.StockEntityAll,
 		},
 		{
