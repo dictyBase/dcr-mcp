@@ -34,17 +34,73 @@ func toOutcomeWithMarkdown[Out any](
 	}
 }
 
-func validateAutocompleteState(
-	s autocompleteState,
-) E.Either[error, autocompleteState] {
-	return F.Pipe1(
-		E.Of[error](s),
-		E.Bind(
-			autoStateInputLens.Set,
-			F.Flow2(autoStateInputLens.Get, ValidateAutocompleteInput),
-		),
+var (
+	toAutocompleteState = F.Curry3(
+		func(
+			ctx context.Context,
+			client *graphql.Client,
+			in AutocompleteStocksInput,
+		) autocompleteState {
+			return autocompleteState{
+				ctx:    ctx,
+				client: client,
+				input:  in,
+			}
+		},
 	)
-}
+	toSearchState = F.Curry3(
+		func(
+			ctx context.Context,
+			client *graphql.Client,
+			in SearchStocksInput,
+		) searchState {
+			return searchState{
+				ctx:    ctx,
+				client: client,
+				input:  in,
+			}
+		},
+	)
+	toStrainState = F.Curry3(
+		func(
+			ctx context.Context,
+			client *graphql.Client,
+			in GetStrainInput,
+		) strainState {
+			return strainState{
+				ctx:    ctx,
+				client: client,
+				input:  in,
+			}
+		},
+	)
+	toPlasmidState = F.Curry3(
+		func(
+			ctx context.Context,
+			client *graphql.Client,
+			in GetPlasmidInput,
+		) plasmidState {
+			return plasmidState{
+				ctx:    ctx,
+				client: client,
+				input:  in,
+			}
+		},
+	)
+	toPhenotypeListState = F.Curry3(
+		func(
+			ctx context.Context,
+			client *graphql.Client,
+			in ListStrainsWithPhenotypeInput,
+		) phenotypeListState {
+			return phenotypeListState{
+				ctx:    ctx,
+				client: client,
+				input:  in,
+			}
+		},
+	)
+)
 
 func executeAutocomplete(
 	s autocompleteState,
@@ -65,13 +121,11 @@ func newAutocompleteHandler(
 		_ *mcp.CallToolRequest,
 		input AutocompleteStocksInput,
 	) (*mcp.CallToolResult, graphql.AutocompleteResult, error) {
-		out := F.Pipe4(
-			IOE.Of[error](autocompleteState{
-				ctx:    ctx,
-				client: client,
-				input:  input,
-			}),
-			IOE.ChainEitherK(validateAutocompleteState),
+		buildState := F.Pipe1(client, toAutocompleteState(ctx))
+		out := F.Pipe5(
+			IOE.Of[error](input),
+			IOE.ChainEitherK(ValidateAutocompleteInput),
+			IOE.Map[error](buildState),
 			IOE.Chain(executeAutocomplete),
 			ioeutils.ToEither[error, graphql.AutocompleteResult],
 			E.Fold(
@@ -81,16 +135,6 @@ func newAutocompleteHandler(
 		)
 		return out.Result, out.Output, out.Err
 	}
-}
-
-func validateSearchState(s searchState) E.Either[error, searchState] {
-	return F.Pipe1(
-		E.Of[error](s),
-		E.Bind(
-			searchStateInputLens.Set,
-			F.Flow2(searchStateInputLens.Get, ValidateSearchInput),
-		),
-	)
 }
 
 func executeSearch(s searchState) IOE.IOEither[error, graphql.SearchResult] {
@@ -110,13 +154,11 @@ func newSearchHandler(
 		_ *mcp.CallToolRequest,
 		input SearchStocksInput,
 	) (*mcp.CallToolResult, SearchResultView, error) {
-		out := F.Pipe5(
-			IOE.Of[error](searchState{
-				ctx:    ctx,
-				client: client,
-				input:  input,
-			}),
-			IOE.ChainEitherK(validateSearchState),
+		buildState := F.Pipe1(client, toSearchState(ctx))
+		out := F.Pipe6(
+			IOE.Of[error](input),
+			IOE.ChainEitherK(ValidateSearchInput),
+			IOE.Map[error](buildState),
 			IOE.Chain(executeSearch),
 			IOE.Map[error](toSearchResultView),
 			ioeutils.ToEither[error, SearchResultView],
@@ -127,16 +169,6 @@ func newSearchHandler(
 		)
 		return out.Result, out.Output, out.Err
 	}
-}
-
-func validateStrainState(s strainState) E.Either[error, strainState] {
-	return F.Pipe1(
-		E.Of[error](s),
-		E.Bind(
-			strainStateInputLens.Set,
-			F.Flow2(strainStateInputLens.Get, ValidateStrainIDInput),
-		),
-	)
 }
 
 func executeGetStrain(s strainState) IOE.IOEither[error, graphql.StrainDetail] {
@@ -155,13 +187,11 @@ func newGetStrainHandler(
 		input GetStrainInput,
 	) (*mcp.CallToolResult, StrainView, error) {
 		view := strainViewFor(normalizeDetailString(input.Detail))
-		out := F.Pipe4(
-			IOE.Of[error](strainState{
-				ctx:    ctx,
-				client: client,
-				input:  input,
-			}),
-			IOE.ChainEitherK(validateStrainState),
+		buildState := F.Pipe1(client, toStrainState(ctx))
+		out := F.Pipe5(
+			IOE.Of[error](input),
+			IOE.ChainEitherK(ValidateStrainIDInput),
+			IOE.Map[error](buildState),
 			IOE.Chain(F.Flow2(executeGetStrain, IOE.Map[error](view))),
 			ioeutils.ToEither[error, StrainView],
 			E.Fold(
@@ -171,16 +201,6 @@ func newGetStrainHandler(
 		)
 		return out.Result, out.Output, out.Err
 	}
-}
-
-func validatePlasmidState(s plasmidState) E.Either[error, plasmidState] {
-	return F.Pipe1(
-		E.Of[error](s),
-		E.Bind(
-			plasmidStateInputLens.Set,
-			F.Flow2(plasmidStateInputLens.Get, ValidatePlasmidIDInput),
-		),
-	)
 }
 
 func executeGetPlasmid(s plasmidState) IOE.IOEither[error, graphql.PlasmidDetail] {
@@ -199,13 +219,11 @@ func newGetPlasmidHandler(
 		input GetPlasmidInput,
 	) (*mcp.CallToolResult, PlasmidView, error) {
 		view := plasmidViewFor(normalizeDetailString(input.Detail))
-		out := F.Pipe4(
-			IOE.Of[error](plasmidState{
-				ctx:    ctx,
-				client: client,
-				input:  input,
-			}),
-			IOE.ChainEitherK(validatePlasmidState),
+		buildState := F.Pipe1(client, toPlasmidState(ctx))
+		out := F.Pipe5(
+			IOE.Of[error](input),
+			IOE.ChainEitherK(ValidatePlasmidIDInput),
+			IOE.Map[error](buildState),
 			IOE.Chain(F.Flow2(executeGetPlasmid, IOE.Map[error](view))),
 			ioeutils.ToEither[error, PlasmidView],
 			E.Fold(
@@ -230,13 +248,11 @@ func newGetPlasmidSequenceHandler(
 			IOE.ChainEitherK(E.FromPredicate(hasSequence, errNoSequence)),
 			IOE.Map[error](toPlasmidSequence),
 		)
-		out := F.Pipe4(
-			IOE.Of[error](plasmidState{
-				ctx:    ctx,
-				client: client,
-				input:  GetPlasmidInput{ID: input.ID, Detail: detailFull},
-			}),
-			IOE.ChainEitherK(validatePlasmidState),
+		buildState := F.Pipe1(client, toPlasmidState(ctx))
+		out := F.Pipe5(
+			IOE.Of[error](GetPlasmidInput{ID: input.ID, Detail: detailFull}),
+			IOE.ChainEitherK(ValidatePlasmidIDInput),
+			IOE.Map[error](buildState),
 			IOE.Chain(toSequence),
 			ioeutils.ToEither[error, PlasmidSequence],
 			E.Fold(
@@ -246,18 +262,6 @@ func newGetPlasmidSequenceHandler(
 		)
 		return out.Result, out.Output, out.Err
 	}
-}
-
-func validatePhenotypeState(
-	s phenotypeListState,
-) E.Either[error, phenotypeListState] {
-	return F.Pipe1(
-		E.Of[error](s),
-		E.Bind(
-			phenoStateInputLens.Set,
-			F.Flow2(phenoStateInputLens.Get, ValidatePhenotypeListInput),
-		),
-	)
 }
 
 func executeListPhenotypeStrains(
@@ -279,13 +283,11 @@ func newListPhenotypeStrainsHandler(
 		_ *mcp.CallToolRequest,
 		input ListStrainsWithPhenotypeInput,
 	) (*mcp.CallToolResult, PhenotypeStrainListView, error) {
-		out := F.Pipe5(
-			IOE.Of[error](phenotypeListState{
-				ctx:    ctx,
-				client: client,
-				input:  input,
-			}),
-			IOE.ChainEitherK(validatePhenotypeState),
+		buildState := F.Pipe1(client, toPhenotypeListState(ctx))
+		out := F.Pipe6(
+			IOE.Of[error](input),
+			IOE.ChainEitherK(ValidatePhenotypeListInput),
+			IOE.Map[error](buildState),
 			IOE.Chain(executeListPhenotypeStrains),
 			IOE.Map[error](toPhenotypeStrainListView),
 			ioeutils.ToEither[error, PhenotypeStrainListView],

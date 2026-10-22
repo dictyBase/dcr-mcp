@@ -124,13 +124,6 @@ var (
 			return in
 		},
 	)
-	autoStateInputLens = L.MakeLens(
-		func(s autocompleteState) AutocompleteStocksInput { return s.input },
-		func(s autocompleteState, in AutocompleteStocksInput) autocompleteState {
-			s.input = in
-			return s
-		},
-	)
 
 	searchQueryLens = L.MakeLens(
 		func(in SearchStocksInput) string { return in.Query },
@@ -153,13 +146,6 @@ var (
 			return in
 		},
 	)
-	searchStateInputLens = L.MakeLens(
-		func(s searchState) SearchStocksInput { return s.input },
-		func(s searchState, in SearchStocksInput) searchState {
-			s.input = in
-			return s
-		},
-	)
 
 	strainIDLens = L.MakeLens(
 		func(in GetStrainInput) string { return in.ID },
@@ -175,13 +161,6 @@ var (
 			return in
 		},
 	)
-	strainStateInputLens = L.MakeLens(
-		func(s strainState) GetStrainInput { return s.input },
-		func(s strainState, in GetStrainInput) strainState {
-			s.input = in
-			return s
-		},
-	)
 
 	plasmidIDLens = L.MakeLens(
 		func(in GetPlasmidInput) string { return in.ID },
@@ -195,13 +174,6 @@ var (
 		func(in GetPlasmidInput, d string) GetPlasmidInput {
 			in.Detail = d
 			return in
-		},
-	)
-	plasmidStateInputLens = L.MakeLens(
-		func(s plasmidState) GetPlasmidInput { return s.input },
-		func(s plasmidState, in GetPlasmidInput) plasmidState {
-			s.input = in
-			return s
 		},
 	)
 
@@ -224,13 +196,6 @@ var (
 		func(in ListStrainsWithPhenotypeInput, l int) ListStrainsWithPhenotypeInput {
 			in.Limit = l
 			return in
-		},
-	)
-	phenoStateInputLens = L.MakeLens(
-		func(s phenotypeListState) ListStrainsWithPhenotypeInput { return s.input },
-		func(s phenotypeListState, in ListStrainsWithPhenotypeInput) phenotypeListState {
-			s.input = in
-			return s
 		},
 	)
 )
