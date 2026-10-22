@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	A "github.com/IBM/fp-go/v2/array"
 	E "github.com/IBM/fp-go/v2/either"
 	F "github.com/IBM/fp-go/v2/function"
 	O "github.com/IBM/fp-go/v2/option"
@@ -12,6 +13,7 @@ import (
 	R "github.com/IBM/fp-go/v2/record"
 	S "github.com/IBM/fp-go/v2/string"
 	eithererr "github.com/dictyBase/fp-go-loom/eithererr"
+	predarrays "github.com/dictyBase/fp-go-loom/predicate/array"
 	predord "github.com/dictyBase/fp-go-loom/predicate/ord"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
 )
@@ -56,6 +58,29 @@ var (
 	)
 	errPhenotypeLimitRange = eithererr.ConstErr[int](
 		"limit must be between 1 and 100",
+	)
+	errFetchIDShort = eithererr.ConstErr[string](
+		"id is required: a DBS (strain) or DBP (plasmid) id",
+	)
+	errGeneShort = eithererr.ConstErr[string](
+		"gene must be at least 2 characters",
+	)
+	errPhenoTermQueryShort = eithererr.ConstErr[string](
+		"query must be at least 3 characters",
+	)
+	errPhenoTermLimitRange = eithererr.ConstErr[int](
+		"limit must be between 1 and 25",
+	)
+	errAvailabilityIDCount = eithererr.ConstErr[[]string](
+		"ids must contain between 1 and 25 non-empty ids",
+	)
+	errEmptyPublicationID = eithererr.ConstErr[string](
+		"publication id is required",
+	)
+
+	validIDCount = F.Pipe1(
+		predarrays.MaxLen[string](maxAvailabilityIDs),
+		P.And(predarrays.MinLen[string](1)),
 	)
 )
 
@@ -275,5 +300,104 @@ func ValidatePhenotypeListInput(
 		E.Bind(phenoNameLens.Set, validatePhenotypeName),
 		E.Bind(phenoCursorLens.Set, validatePhenotypeCursor),
 		E.Bind(phenoLimitLens.Set, validatePhenotypeLimit),
+	)
+}
+
+func validateFetchID(in FetchInput) E.Either[error, string] {
+	return F.Pipe3(
+		in.ID,
+		strings.TrimSpace,
+		strings.ToUpper,
+		E.FromPredicate(predord.MinStrLen(stockIDPrefixLen+1), errFetchIDShort),
+	)
+}
+
+// ValidateFetchInput trims, upper-cases, and validates FetchInput.
+func ValidateFetchInput(in FetchInput) E.Either[error, FetchInput] {
+	return F.Pipe1(
+		E.Of[error](in),
+		E.Bind(fetchIDLens.Set, validateFetchID),
+	)
+}
+
+func validateGeneName(in FindStocksByGeneInput) E.Either[error, string] {
+	return F.Pipe2(
+		in.Gene,
+		strings.TrimSpace,
+		E.FromPredicate(predord.MinStrLen(minGeneQueryLen), errGeneShort),
+	)
+}
+
+// ValidateFindStocksByGeneInput trims and validates FindStocksByGeneInput.
+func ValidateFindStocksByGeneInput(in FindStocksByGeneInput) E.Either[error, FindStocksByGeneInput] {
+	return F.Pipe1(
+		E.Of[error](in),
+		E.Bind(geneNameLens.Set, validateGeneName),
+	)
+}
+
+func validatePhenoTermQuery(in SuggestPhenotypeTermsInput) E.Either[error, string] {
+	return F.Pipe2(
+		in.Query,
+		strings.TrimSpace,
+		E.FromPredicate(predord.MinStrLen(minPhenoTermQueryLen), errPhenoTermQueryShort),
+	)
+}
+
+func validatePhenoTermLimit(in SuggestPhenotypeTermsInput) E.Either[error, int] {
+	resolveDefault := defaultIfZeroInt(defaultPhenoTermLimit)
+	return F.Pipe2(
+		in.Limit,
+		resolveDefault,
+		E.FromPredicate(
+			predord.IntBetweenInclusive(1, maxPhenoTermLimit),
+			errPhenoTermLimitRange,
+		),
+	)
+}
+
+// ValidateSuggestPhenotypeTermsInput trims, defaults, and validates SuggestPhenotypeTermsInput.
+func ValidateSuggestPhenotypeTermsInput(
+	in SuggestPhenotypeTermsInput,
+) E.Either[error, SuggestPhenotypeTermsInput] {
+	return F.Pipe2(
+		E.Of[error](in),
+		E.Bind(phenoTermQueryLens.Set, validatePhenoTermQuery),
+		E.Bind(phenoTermLimitLens.Set, validatePhenoTermLimit),
+	)
+}
+
+func validateAvailabilityIDs(in CheckAvailabilityInput) E.Either[error, []string] {
+	return F.Pipe5(
+		in.IDs,
+		A.Map(strings.TrimSpace),
+		A.Map(strings.ToUpper),
+		A.Filter(S.IsNonEmpty),
+		A.StrictUniq[string],
+		E.FromPredicate(validIDCount, errAvailabilityIDCount),
+	)
+}
+
+// ValidateCheckAvailabilityInput normalizes, de-duplicates, and bounds the id list.
+func ValidateCheckAvailabilityInput(in CheckAvailabilityInput) E.Either[error, CheckAvailabilityInput] {
+	return F.Pipe1(
+		E.Of[error](in),
+		E.Bind(availabilityIDsLens.Set, validateAvailabilityIDs),
+	)
+}
+
+func validatePublicationID(in GetPublicationInput) E.Either[error, string] {
+	return F.Pipe2(
+		in.ID,
+		strings.TrimSpace,
+		E.FromPredicate(S.IsNonEmpty, errEmptyPublicationID),
+	)
+}
+
+// ValidatePublicationInput trims and validates GetPublicationInput.
+func ValidatePublicationInput(in GetPublicationInput) E.Either[error, GetPublicationInput] {
+	return F.Pipe1(
+		E.Of[error](in),
+		E.Bind(publicationIDLens.Set, validatePublicationID),
 	)
 }

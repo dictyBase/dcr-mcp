@@ -104,6 +104,19 @@ var (
 			}
 		},
 	)
+	toFetchState = F.Curry3(
+		func(
+			ctx context.Context,
+			client *graphql.Client,
+			in FetchInput,
+		) fetchState {
+			return fetchState{
+				ctx:    ctx,
+				client: client,
+				input:  in,
+			}
+		},
+	)
 )
 
 func executeAutocomplete(
@@ -190,13 +203,14 @@ func newGetStrainHandler(
 		_ *mcp.CallToolRequest,
 		input GetStrainInput,
 	) (*mcp.CallToolResult, StrainView, error) {
-		view := strainViewFor(normalizeDetailString(input.Detail))
+		view := F.Pipe1(input.Detail, F.Flow2(normalizeDetailString, strainViewFor))
 		buildState := F.Pipe1(client, toStrainState(ctx))
-		out := F.Pipe5(
+		out := F.Pipe6(
 			IOE.Of[error](input),
 			IOE.ChainEitherK(ValidateStrainIDInput),
 			IOE.Map[error](buildState),
-			IOE.Chain(F.Flow2(executeGetStrain, IOE.Map[error](view))),
+			IOE.Chain(executeGetStrain),
+			IOE.Map[error](view),
 			ioeutils.ToEither[error, StrainView],
 			E.Fold(
 				toOutcomeError[StrainView],
@@ -222,13 +236,14 @@ func newGetPlasmidHandler(
 		_ *mcp.CallToolRequest,
 		input GetPlasmidInput,
 	) (*mcp.CallToolResult, PlasmidView, error) {
-		view := plasmidViewFor(normalizeDetailString(input.Detail))
+		view := F.Pipe1(input.Detail, F.Flow2(normalizeDetailString, plasmidViewFor))
 		buildState := F.Pipe1(client, toPlasmidState(ctx))
-		out := F.Pipe5(
+		out := F.Pipe6(
 			IOE.Of[error](input),
 			IOE.ChainEitherK(ValidatePlasmidIDInput),
 			IOE.Map[error](buildState),
-			IOE.Chain(F.Flow2(executeGetPlasmid, IOE.Map[error](view))),
+			IOE.Chain(executeGetPlasmid),
+			IOE.Map[error](view),
 			ioeutils.ToEither[error, PlasmidView],
 			E.Fold(
 				toOutcomeError[PlasmidView],
@@ -359,4 +374,46 @@ func RegisterAll(srv *mcp.Server, client *graphql.Client) {
 		Description: descListPhenotype,
 		Annotations: readOnlyTool(titleListPhenotype),
 	}, newListPhenotypeStrainsHandler(client))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        toolChatGPTSearch,
+		Title:       titleChatGPTSearch,
+		Description: descChatGPTSearch,
+		Annotations: readOnlyTool(titleChatGPTSearch),
+	}, newChatGPTSearchHandler(client))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        toolChatGPTFetch,
+		Title:       titleChatGPTFetch,
+		Description: descChatGPTFetch,
+		Annotations: readOnlyTool(titleChatGPTFetch),
+	}, newChatGPTFetchHandler(client))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        toolFindByGene,
+		Title:       titleFindByGene,
+		Description: descFindByGene,
+		Annotations: readOnlyTool(titleFindByGene),
+	}, newFindStocksByGeneHandler(client))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        toolSuggestPhenoTerms,
+		Title:       titleSuggestPhenoTerms,
+		Description: descSuggestPhenoTerms,
+		Annotations: readOnlyTool(titleSuggestPhenoTerms),
+	}, newSuggestPhenotypeTermsHandler(client))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        toolCheckAvailability,
+		Title:       titleCheckAvailability,
+		Description: descCheckAvailability,
+		Annotations: readOnlyTool(titleCheckAvailability),
+	}, newCheckAvailabilityHandler(client))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        toolGetPublication,
+		Title:       titleGetPublication,
+		Description: descGetPublication,
+		Annotations: readOnlyTool(titleGetPublication),
+	}, newGetPublicationHandler(client))
 }

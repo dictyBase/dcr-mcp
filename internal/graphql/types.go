@@ -56,6 +56,51 @@ type PhenotypeListParams struct {
 	Limit     int
 }
 
+// GeneParams holds a validated gene name or DDB_G identifier.
+type GeneParams struct {
+	Ctx  context.Context
+	Gene string
+}
+
+// GeneInfo holds general information for one gene.
+type GeneInfo struct {
+	ID              string   `graphql:"id" json:"id"`
+	NameDescription []string `graphql:"name_description" json:"name_description"`
+	GeneProduct     string   `graphql:"gene_product" json:"gene_product"`
+	Synonyms        []string `graphql:"synonyms" json:"synonyms"`
+	Description     string   `graphql:"description" json:"description"`
+}
+
+// GeneStrainItem is one strain returned by listStrainsWithGene.
+type GeneStrainItem struct {
+	ID      string `graphql:"id" json:"id"`
+	Label   string `graphql:"label" json:"label"`
+	Summary string `graphql:"summary" json:"summary"`
+	InStock bool   `graphql:"in_stock" json:"in_stock"`
+}
+
+// FullAuthor holds a publication author.
+type FullAuthor struct {
+	LastName  string `graphql:"last_name" json:"last_name"`
+	FirstName string `graphql:"first_name" json:"first_name"`
+	Initials  string `graphql:"initials" json:"initials"`
+	Rank      string `graphql:"rank" json:"rank"`
+}
+
+// PublicationDetail holds one publication record.
+type PublicationDetail struct {
+	ID       string       `graphql:"id" json:"id"`
+	DOI      string       `graphql:"doi" json:"doi,omitempty"`
+	Title    string       `graphql:"title" json:"title"`
+	Abstract string       `graphql:"abstract" json:"abstract"`
+	Journal  string       `graphql:"journal" json:"journal"`
+	PubDate  string       `graphql:"pub_date" json:"pub_date"`
+	Volume   string       `graphql:"volume" json:"volume"`
+	Pages    string       `graphql:"pages" json:"pages"`
+	PubType  string       `graphql:"pub_type" json:"pub_type"`
+	Authors  []FullAuthor `graphql:"authors" json:"authors"`
+}
+
 // StockSuggestion represents one type-ahead autocomplete suggestion.
 type StockSuggestion struct {
 	ID          string          `graphql:"id" json:"id"`
@@ -238,6 +283,18 @@ type listStrainsWithPhenotypeQuery struct {
 	} `graphql:"listStrainsWithAnnotation(cursor: $cursor, limit: $limit, type: $type, annotation: $annotation)"`
 }
 
+type geneInfoQuery struct {
+	GeneGeneralInformation GeneInfo `graphql:"geneGeneralInformation(gene: $gene)"`
+}
+
+type strainsWithGeneQuery struct {
+	ListStrainsWithGene []GeneStrainItem `graphql:"listStrainsWithGene(gene: $gene)"`
+}
+
+type publicationQuery struct {
+	Publication PublicationDetail `graphql:"publication(id: $id)"`
+}
+
 func emptySlice[T any]() []T {
 	return make([]T, 0)
 }
@@ -335,6 +392,24 @@ func toPhenotypeStrainList(q *listStrainsWithPhenotypeQuery) PhenotypeStrainList
 		NextCursor: q.ListStrainsWithAnnotation.NextCursor,
 		TotalCount: q.ListStrainsWithAnnotation.TotalCount,
 	}
+}
+
+func toGeneInfo(q *geneInfoQuery) GeneInfo {
+	g := q.GeneGeneralInformation
+	g.NameDescription = nonNilSlice(g.NameDescription)
+	g.Synonyms = nonNilSlice(g.Synonyms)
+	return g
+}
+
+var toGeneStrainItems = F.Flow2(
+	func(q *strainsWithGeneQuery) []GeneStrainItem { return q.ListStrainsWithGene },
+	nonNilSlice[GeneStrainItem],
+)
+
+func toPublicationDetail(q *publicationQuery) PublicationDetail {
+	p := q.Publication
+	p.Authors = nonNilSlice(p.Authors)
+	return p
 }
 
 // Ensure hasuragql is referenced when needed by schema types.

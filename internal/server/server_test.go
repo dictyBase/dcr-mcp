@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/dictybase/dcr-mcp/internal/graphql"
 	"github.com/dictybase/dcr-mcp/internal/server"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
@@ -109,7 +110,7 @@ func TestHTTPHandler(t *testing.T) {
 
 		toolsRes, err := session.ListTools(ctx, nil)
 		require.NoError(t, err)
-		require.Len(t, toolsRes.Tools, 6)
+		require.Len(t, toolsRes.Tools, 12)
 
 		for _, tc := range []struct {
 			name string
@@ -131,4 +132,20 @@ func TestHTTPHandler(t *testing.T) {
 			require.NotNil(t, res.StructuredContent, tc.name)
 		}
 	})
+}
+
+func TestServerInstructions(t *testing.T) {
+	srv := server.NewMCPServer(graphql.NewClient("http://127.0.0.1:0", nil))
+	ctx := context.Background()
+	t1, t2 := mcp.NewInMemoryTransports()
+	_, err := srv.Connect(ctx, t1, nil)
+	require.NoError(t, err)
+	session, err := mcp.NewClient(&mcp.Implementation{Name: "c", Version: "test"}, nil).Connect(ctx, t2, nil)
+	require.NoError(t, err)
+	defer func() { _ = session.Close() }()
+
+	instructions := session.InitializeResult().Instructions
+	require.Contains(t, instructions, "find_stocks_by_gene")
+	require.Contains(t, instructions, "suggest_phenotype_terms")
+	require.Contains(t, instructions, "url")
 }

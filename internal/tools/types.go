@@ -25,6 +25,16 @@ const (
 	detailFull            = "full"
 	summaryPhenotypeCap   = 10
 	summaryPublicationCap = 5
+
+	minGeneQueryLen  = 2
+	genePlasmidLimit = 25
+
+	phenotypeSampleLimit  = 100
+	defaultPhenoTermLimit = 10
+	maxPhenoTermLimit     = 25
+	minPhenoTermQueryLen  = 3
+
+	maxAvailabilityIDs = 25
 )
 
 // AutocompleteStocksInput defines the JSON Schema parameters for autocomplete_stocks.
@@ -65,6 +75,37 @@ type ListStrainsWithPhenotypeInput struct {
 	Limit     int    `json:"limit,omitempty" jsonschema:"Maximum number of strains to return (default 10, 1-100)"`
 }
 
+// ChatGPTSearchInput defines the JSON Schema parameters for the ChatGPT-compatible search tool.
+type ChatGPTSearchInput struct {
+	Query string `json:"query" jsonschema:"Search text, for example a gene name, strain label, or phenotype"`
+}
+
+// FetchInput defines the JSON Schema parameters for the ChatGPT-compatible fetch tool.
+type FetchInput struct {
+	ID string `json:"id" jsonschema:"Stock id returned by search: DBS... (strain) or DBP... (plasmid)"`
+}
+
+// FindStocksByGeneInput defines the JSON Schema parameters for find_stocks_by_gene.
+type FindStocksByGeneInput struct {
+	Gene string `json:"gene" jsonschema:"Gene name (for example pkaC) or dictyBase gene id (for example DDB_G0283907)"`
+}
+
+// SuggestPhenotypeTermsInput defines the JSON Schema parameters for suggest_phenotype_terms.
+type SuggestPhenotypeTermsInput struct {
+	Query string `json:"query" jsonschema:"Words describing the phenotype (at least 3 characters), for example growth rate"`
+	Limit int    `json:"limit,omitempty" jsonschema:"Maximum number of terms (default 10, 1-25)"`
+}
+
+// CheckAvailabilityInput defines the JSON Schema parameters for check_availability.
+type CheckAvailabilityInput struct {
+	IDs []string `json:"ids" jsonschema:"1 to 25 strain (DBS...) and/or plasmid (DBP...) ids"`
+}
+
+// GetPublicationInput defines the JSON Schema parameters for get_publication.
+type GetPublicationInput struct {
+	ID string `json:"id" jsonschema:"PubMed id of a publication listed on a strain or plasmid (for example 17177856)"`
+}
+
 // toolCallOutcome holds the 3-tuple returned to mcp.ToolHandlerFor.
 type toolCallOutcome[Out any] struct {
 	Result *mcp.CallToolResult
@@ -100,6 +141,40 @@ type phenotypeListState struct {
 	ctx    context.Context
 	client *graphql.Client
 	input  ListStrainsWithPhenotypeInput
+}
+
+type fetchState struct {
+	ctx    context.Context
+	client *graphql.Client
+	input  FetchInput
+}
+
+type geneStocksState struct {
+	ctx      context.Context
+	client   *graphql.Client
+	input    FindStocksByGeneInput
+	gene     graphql.GeneInfo
+	strains  []graphql.GeneStrainItem
+	plasmids graphql.SearchResult
+}
+
+type phenoTermsState struct {
+	ctx    context.Context
+	client *graphql.Client
+	input  SuggestPhenotypeTermsInput
+	result graphql.SearchResult
+}
+
+type availabilityState struct {
+	ctx    context.Context
+	client *graphql.Client
+	input  CheckAvailabilityInput
+}
+
+type publicationState struct {
+	ctx    context.Context
+	client *graphql.Client
+	input  GetPublicationInput
 }
 
 var (
@@ -195,6 +270,81 @@ var (
 		func(in ListStrainsWithPhenotypeInput) int { return in.Limit },
 		func(in ListStrainsWithPhenotypeInput, l int) ListStrainsWithPhenotypeInput {
 			in.Limit = l
+			return in
+		},
+	)
+
+	fetchIDLens = L.MakeLens(
+		func(in FetchInput) string { return in.ID },
+		func(in FetchInput, id string) FetchInput {
+			in.ID = id
+			return in
+		},
+	)
+
+	geneNameLens = L.MakeLens(
+		func(in FindStocksByGeneInput) string { return in.Gene },
+		func(in FindStocksByGeneInput, g string) FindStocksByGeneInput {
+			in.Gene = g
+			return in
+		},
+	)
+	geneStocksGeneLens = L.MakeLens(
+		func(s geneStocksState) graphql.GeneInfo { return s.gene },
+		func(s geneStocksState, g graphql.GeneInfo) geneStocksState {
+			s.gene = g
+			return s
+		},
+	)
+	geneStocksStrainsLens = L.MakeLens(
+		func(s geneStocksState) []graphql.GeneStrainItem { return s.strains },
+		func(s geneStocksState, items []graphql.GeneStrainItem) geneStocksState {
+			s.strains = items
+			return s
+		},
+	)
+	geneStocksPlasmidsLens = L.MakeLens(
+		func(s geneStocksState) graphql.SearchResult { return s.plasmids },
+		func(s geneStocksState, r graphql.SearchResult) geneStocksState {
+			s.plasmids = r
+			return s
+		},
+	)
+
+	phenoTermQueryLens = L.MakeLens(
+		func(in SuggestPhenotypeTermsInput) string { return in.Query },
+		func(in SuggestPhenotypeTermsInput, q string) SuggestPhenotypeTermsInput {
+			in.Query = q
+			return in
+		},
+	)
+	phenoTermLimitLens = L.MakeLens(
+		func(in SuggestPhenotypeTermsInput) int { return in.Limit },
+		func(in SuggestPhenotypeTermsInput, l int) SuggestPhenotypeTermsInput {
+			in.Limit = l
+			return in
+		},
+	)
+	phenoTermsResultLens = L.MakeLens(
+		func(s phenoTermsState) graphql.SearchResult { return s.result },
+		func(s phenoTermsState, r graphql.SearchResult) phenoTermsState {
+			s.result = r
+			return s
+		},
+	)
+
+	availabilityIDsLens = L.MakeLens(
+		func(in CheckAvailabilityInput) []string { return in.IDs },
+		func(in CheckAvailabilityInput, ids []string) CheckAvailabilityInput {
+			in.IDs = ids
+			return in
+		},
+	)
+
+	publicationIDLens = L.MakeLens(
+		func(in GetPublicationInput) string { return in.ID },
+		func(in GetPublicationInput, id string) GetPublicationInput {
+			in.ID = id
 			return in
 		},
 	)

@@ -1,13 +1,19 @@
 package graphql
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
+	A "github.com/IBM/fp-go/v2/array"
+	E "github.com/IBM/fp-go/v2/either"
+	EQ "github.com/IBM/fp-go/v2/eq"
 	F "github.com/IBM/fp-go/v2/function"
 	IOE "github.com/IBM/fp-go/v2/ioeither"
 	O "github.com/IBM/fp-go/v2/option"
 	P "github.com/IBM/fp-go/v2/predicate"
+	S "github.com/IBM/fp-go/v2/string"
+	predord "github.com/dictyBase/fp-go-loom/predicate/ord"
 	hasuragql "github.com/hasura/go-graphql-client"
 )
 
@@ -20,6 +26,8 @@ const (
 	varType       = "type"
 	varAnnotation = "annotation"
 	phenotypeType = "phenotype"
+	varGene       = "gene"
+	notFoundCode  = "NotFound"
 )
 
 // Client wraps a hasura GraphQL client with functional IOEither query methods.
@@ -141,5 +149,102 @@ func (c *Client) ListStrainsWithPhenotype(
 			)
 		}),
 		IOE.Map[error](toPhenotypeStrainList),
+	)
+}
+
+func gqlErrorCode(e hasuragql.Error) string {
+	code, _ := e.Extensions["code"].(string)
+	return code
+}
+
+var hasNotFoundCode = F.Pipe2(
+	notFoundCode,
+	EQ.Equals(predord.StringEq),
+	P.ContraMap(gqlErrorCode),
+)
+
+func gqlErrors(err error) []hasuragql.Error {
+	var errs hasuragql.Errors
+	_ = errors.As(err, &errs)
+	return errs
+}
+
+// isNotFound reports whether err carries extensions.code == "NotFound".
+// dictyBase uses it for "no strains for this gene", which is an empty result, not a failure.
+var isNotFound = F.Flow2(gqlErrors, A.Any(hasNotFoundCode))
+
+func recoverNotFound[T any](empty func() T) func(error) IOE.IOEither[error, T] {
+	return func(err error) IOE.IOEither[error, T] {
+		return F.Pipe2(
+			err,
+			O.FromPredicate(isNotFound),
+			O.Fold(
+				func() IOE.IOEither[error, T] { return IOE.Left[T](err) },
+				func(error) IOE.IOEither[error, T] { return IOE.Of[error](empty()) },
+			),
+		)
+	}
+}
+
+var geneFound = F.Pipe1(
+	S.IsNonEmpty,
+	P.ContraMap(func(g GeneInfo) string { return g.ID }),
+)
+
+// GetGeneInfo resolves a gene name or DDB_G id via geneGeneralInformation.
+func (c *Client) GetGeneInfo(params GeneParams) IOE.IOEither[error, GeneInfo] {
+	notFound := func(GeneInfo) error {
+		return fmt.Errorf("gene %q not found in dictyBase", params.Gene)
+	}
+	return F.Pipe3(
+		IOE.TryCatchError(func() (*geneInfoQuery, error) {
+			query := new(geneInfoQuery)
+			return query, c.gql.Query(params.Ctx, query, map[string]any{varGene: params.Gene})
+		}),
+		IOE.MapLeft[*geneInfoQuery](func(err error) error {
+			return fmt.Errorf("geneGeneralInformation query for %q failed: %w", params.Gene, err)
+		}),
+		IOE.Map[error](toGeneInfo),
+		IOE.ChainEitherK(E.FromPredicate(geneFound, notFound)),
+	)
+}
+
+// ListStrainsWithGene lists strains for a DDB_G gene id; NotFound yields an empty list.
+func (c *Client) ListStrainsWithGene(params GeneParams) IOE.IOEither[error, []GeneStrainItem] {
+	return F.Pipe3(
+		IOE.TryCatchError(func() (*strainsWithGeneQuery, error) {
+			query := new(strainsWithGeneQuery)
+			return query, c.gql.Query(params.Ctx, query, map[string]any{varGene: params.Gene})
+		}),
+		IOE.Map[error](toGeneStrainItems),
+		IOE.OrElse(recoverNotFound(emptySlice[GeneStrainItem])),
+		IOE.MapLeft[[]GeneStrainItem](func(err error) error {
+			return fmt.Errorf("listStrainsWithGene query for %q failed: %w", params.Gene, err)
+		}),
+	)
+}
+
+var publicationFound = F.Pipe1(
+	S.IsNonEmpty,
+	P.ContraMap(func(p PublicationDetail) string { return p.ID }),
+)
+
+// GetPublication fetches one publication by its PubMed id.
+func (c *Client) GetPublication(params IDParams) IOE.IOEither[error, PublicationDetail] {
+	notFound := func(PublicationDetail) error {
+		return fmt.Errorf("publication %q not found", params.ID)
+	}
+	return F.Pipe3(
+		IOE.TryCatchError(func() (*publicationQuery, error) {
+			query := new(publicationQuery)
+			return query, c.gql.Query(params.Ctx, query, map[string]any{
+				varID: hasuragql.ID(params.ID),
+			})
+		}),
+		IOE.MapLeft[*publicationQuery](func(err error) error {
+			return fmt.Errorf("publication query for %q failed: %w", params.ID, err)
+		}),
+		IOE.Map[error](toPublicationDetail),
+		IOE.ChainEitherK(E.FromPredicate(publicationFound, notFound)),
 	)
 }

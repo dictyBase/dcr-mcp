@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"fmt"
 	"strings"
 
 	F "github.com/IBM/fp-go/v2/function"
@@ -15,6 +16,8 @@ const (
 	pubmedBaseURL      = "https://pubmed.ncbi.nlm.nih.gov"
 	doiBaseURL         = "https://doi.org"
 
+	strainIDPrefix   = "DBS"
+	plasmidIDPrefix  = "DBP"
 	stockIDPrefixLen = 3
 )
 
@@ -55,4 +58,8 @@ func StockURL(entity graphql.StockEntityType, id string) string {
 // IDPrefix returns the upper-cased first three characters of id ("DBS", "DBP", ...).
 func IDPrefix(id string) string {
 	return strings.ToUpper(id[:min(len(id), stockIDPrefixLen)])
+}
+
+func unknownIDError(id string) error {
+	return fmt.Errorf("unrecognized stock id %q: expected a DBS (strain) or DBP (plasmid) id", id)
 }

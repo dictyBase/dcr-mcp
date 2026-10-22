@@ -151,6 +151,16 @@ func newStubGraphQLServer(t *testing.T) *httptest.Server {
 					}
 				}
 			}`))
+		case strings.Contains(req.Query, "geneGeneralInformation") && req.Variables["gene"] == "pkaC":
+			_, _ = w.Write([]byte(`{"data":{"geneGeneralInformation":{"id":"DDB_G0283907","name_description":["pkaC = Protein Kinase A, Catalytic subunit"],"gene_product":"cAMP-dependent protein kinase A, catalytic subunit","synonyms":["PKA","DdPK3"],"description":""}}}`))
+		case strings.Contains(req.Query, "geneGeneralInformation"):
+			_, _ = w.Write([]byte(`{"data":{"geneGeneralInformation":null}}`))
+		case strings.Contains(req.Query, "listStrainsWithGene") && req.Variables["gene"] == "DDB_G0283907":
+			_, _ = w.Write([]byte(`{"data":{"listStrainsWithGene":[{"id":"DBS0236783","label":"pkaC-","summary":"pkaC null","in_stock":true}]}}`))
+		case strings.Contains(req.Query, "listStrainsWithGene"):
+			_, _ = w.Write([]byte(`{"errors":[{"message":"could not find any strains","path":["listStrainsWithGene"],"extensions":{"code":"NotFound"}}],"data":{"listStrainsWithGene":[]}}`))
+		case strings.Contains(req.Query, "publication("):
+			_, _ = w.Write([]byte(`{"data":{"publication":{"id":"17177856","doi":"10.1111/x","title":"A paper","abstract":"Abstract text","journal":"Differentiation","pub_date":"2006-12-01T00:00:00.000Z","volume":"74","pages":"1-10","pub_type":"journal_article","authors":[{"last_name":"Smith","first_name":"A","initials":"A","rank":"1"}]}}}`))
 		}
 	}))
 }
@@ -241,5 +251,45 @@ func TestClientOperations(t *testing.T) {
 		require.Len(t, res.Strains, 1)
 		require.Equal(t, "DBS0349965", res.Strains[0].ID)
 		require.Equal(t, "10.1/x", res.Strains[0].Publications[0].DOI)
+	})
+}
+
+func TestGeneQueries(t *testing.T) {
+	srv := newStubGraphQLServer(t)
+	defer srv.Close()
+	client := graphql.NewClient(srv.URL, srv.Client())
+	ctx := context.Background()
+
+	t.Run("GetGeneInfo resolves a gene name", func(t *testing.T) {
+		got, err := E.Unwrap(ioeutils.ToEither(client.GetGeneInfo(graphql.GeneParams{Ctx: ctx, Gene: "pkaC"})))
+		require.NoError(t, err)
+		require.Equal(t, "DDB_G0283907", got.ID)
+		require.Equal(t, []string{"PKA", "DdPK3"}, got.Synonyms)
+	})
+
+	t.Run("GetGeneInfo returns Left for unknown gene", func(t *testing.T) {
+		_, err := E.Unwrap(ioeutils.ToEither(client.GetGeneInfo(graphql.GeneParams{Ctx: ctx, Gene: "zzz"})))
+		require.ErrorContains(t, err, `gene "zzz" not found`)
+	})
+
+	t.Run("ListStrainsWithGene returns strains", func(t *testing.T) {
+		got, err := E.Unwrap(ioeutils.ToEither(client.ListStrainsWithGene(graphql.GeneParams{Ctx: ctx, Gene: "DDB_G0283907"})))
+		require.NoError(t, err)
+		require.Len(t, got, 1)
+		require.Equal(t, "DBS0236783", got[0].ID)
+	})
+
+	t.Run("ListStrainsWithGene maps NotFound to empty list", func(t *testing.T) {
+		got, err := E.Unwrap(ioeutils.ToEither(client.ListStrainsWithGene(graphql.GeneParams{Ctx: ctx, Gene: "DDB_G0000000"})))
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		require.Empty(t, got)
+	})
+
+	t.Run("GetPublication", func(t *testing.T) {
+		got, err := E.Unwrap(ioeutils.ToEither(client.GetPublication(graphql.IDParams{Ctx: ctx, ID: "17177856"})))
+		require.NoError(t, err)
+		require.Equal(t, "Abstract text", got.Abstract)
+		require.Equal(t, "Smith", got.Authors[0].LastName)
 	})
 }

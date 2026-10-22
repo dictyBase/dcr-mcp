@@ -18,6 +18,7 @@ import (
 	P "github.com/IBM/fp-go/v2/predicate"
 	predarrays "github.com/dictyBase/fp-go-loom/predicate/array"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
+	"github.com/dictybase/dcr-mcp/internal/prompts"
 	"github.com/dictybase/dcr-mcp/internal/tools"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -27,12 +28,22 @@ import (
 
 const (
 	serverName        = "dcr-mcp"
-	serverVersion     = "1.0.0"
+	serverVersion     = "1.1.0"
 	wildcardOrigin    = "*"
 	healthzBody       = `{"status":"ok"}`
 	corsMaxAgeSeconds = 300
 	readHeaderTimeout = 10 * time.Second
 	shutdownTimeout   = 5 * time.Second
+
+	serverInstructions = "dcr-mcp gives read-only access to the Dicty Stock Center catalog of Dictyostelium " +
+		"strains (DBS ids) and plasmids (DBP ids). Guidance: " +
+		"use find_stocks_by_gene when the user names a gene; " +
+		"use search_stocks for other discovery questions and autocomplete_stocks for partial names or ids; " +
+		"call suggest_phenotype_terms before list_strains_with_phenotype because phenotype terms must match exactly; " +
+		"use get_strain and get_plasmid with the default detail=summary and switch to detail=full only when needed; " +
+		"use check_availability before recommending stocks to order; " +
+		"use get_publication to read a paper cited on a record. " +
+		"Always cite stocks with the url field from results. The catalog cannot be modified through this server."
 )
 
 // Config holds HTTP and GraphQL configuration for the MCP server.
@@ -53,8 +64,11 @@ func NewMCPServer(client *graphql.Client) *mcp.Server {
 	srv := mcp.NewServer(&mcp.Implementation{
 		Name:    serverName,
 		Version: serverVersion,
-	}, nil)
+	}, &mcp.ServerOptions{
+		Instructions: serverInstructions,
+	})
 	tools.RegisterAll(srv, client)
+	prompts.RegisterAll(srv)
 	return srv
 }
 

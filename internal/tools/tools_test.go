@@ -222,8 +222,18 @@ func newToolsStubGraphQLServer(t *testing.T) *httptest.Server {
 		switch {
 		case strings.Contains(req.Query, "listStockSuggestions"):
 			_, _ = w.Write([]byte(`{"data":{"listStockSuggestions":{"limit":5,"totalCount":1,"suggestions":[{"id":"DBS0350026","entity":"STRAIN","field":"GENOTYPE","display_text":"act15:mip1","score":1013.5}]}}}`))
+		case strings.Contains(req.Query, "geneGeneralInformation") && req.Variables["gene"] == "pkaC":
+			_, _ = w.Write([]byte(`{"data":{"geneGeneralInformation":{"id":"DDB_G0283907","name_description":["pkaC = Protein Kinase A"],"gene_product":"PKA catalytic subunit","synonyms":["PKA"],"description":""}}}`))
+		case strings.Contains(req.Query, "geneGeneralInformation"):
+			_, _ = w.Write([]byte(`{"data":{"geneGeneralInformation":null}}`))
+		case strings.Contains(req.Query, "listStrainsWithGene"):
+			_, _ = w.Write([]byte(`{"data":{"listStrainsWithGene":[{"id":"DBS0236783","label":"pkaC-","summary":"pkaC null","in_stock":true}]}}`))
+		case strings.Contains(req.Query, "searchStocks") && req.Variables["entity"] == "PLASMID":
+			_, _ = w.Write([]byte(`{"data":{"searchStocks":{"limit":25,"totalCount":1,"results":[{"id":"DBP0000585","entity":"PLASMID","field":"NAME","display_text":"pDXA-YFP-MCS1-PKA-Fret","score":10,"summary":"","strain_label":"","in_stock":true}]}}}`))
+		case strings.Contains(req.Query, "searchStocks") && req.Variables["query"] == "growth rate":
+			_, _ = w.Write([]byte(`{"data":{"searchStocks":{"limit":100,"totalCount":4,"results":[{"id":"DBS1","entity":"STRAIN","field":"PHENOTYPE","display_text":"increased growth rate","score":9,"summary":"","strain_label":"","in_stock":true},{"id":"DBS2","entity":"STRAIN","field":"PHENOTYPE","display_text":"increased growth rate","score":8,"summary":"","strain_label":"","in_stock":true},{"id":"DBS3","entity":"STRAIN","field":"SUMMARY","display_text":"grows fast","score":7,"summary":"","strain_label":"","in_stock":true},{"id":"DBS4","entity":"STRAIN","field":"PHENOTYPE","display_text":"decreased growth rate","score":6,"summary":"","strain_label":"","in_stock":true}]}}}`))
 		case strings.Contains(req.Query, "searchStocks"):
-			_, _ = w.Write([]byte(`{"data":{"searchStocks":{"limit":50,"totalCount":1,"results":[{"id":"DBS0350840","entity":"STRAIN","field":"GENOTYPE","display_text":"act15:triA","score":1011.4,"summary":"triA null","strain_label":"triA-","in_stock":true}]}}}`))
+			_, _ = w.Write([]byte(`{"data":{"searchStocks":{"limit":50,"totalCount":2,"results":[{"id":"DBS0350840","entity":"STRAIN","field":"GENOTYPE","display_text":"act15:triA","score":1011.4,"summary":"triA null","strain_label":"triA-","in_stock":true},{"id":"DBS0350840","entity":"STRAIN","field":"SUMMARY","display_text":"triA null","score":900.0,"summary":"triA null","strain_label":"triA-","in_stock":true}]}}}`))
 		case strings.Contains(req.Query, "strain("):
 			_, _ = w.Write([]byte(`{"data":{"strain":{"id":"DBS0350840","label":"triA-","summary":"triA null","species":"Dictyostelium discoideum","systematic_name":"DBS0350840","plasmid":"","dbxrefs":[],"in_stock":true,"genotypes":["axeA2"],"mutagenesis_method":"","genetic_modification":"exogenous mutation","names":["triA-"],"characteristics":["axenic"],"parent":{"id":"","label":""},"depositor":{"first_name":"Dicty","last_name":"Stock Center"},"genes":[{"name":"triA"}],"publications":[],"phenotypes":[]}}}`))
 		case strings.Contains(req.Query, "plasmid(") && req.Variables["id"] == "DBP0000001":
@@ -232,6 +242,8 @@ func newToolsStubGraphQLServer(t *testing.T) *httptest.Server {
 			_, _ = w.Write([]byte(`{"data":{"plasmid":{"id":"DBP0391806","name":"pDGB_O2_0006","summary":"GoldenBraid","image_map":"","sequence":"","keywords":[],"genbank_accession":"","in_stock":true,"dbxrefs":[],"depositor":{"first_name":"Gadi","last_name":"Shaulsky"},"genes":[],"publications":[]}}}`))
 		case strings.Contains(req.Query, "listStrainsWithAnnotation"):
 			_, _ = w.Write([]byte(`{"data":{"listStrainsWithAnnotation":{"totalCount":1,"nextCursor":1728057313873,"strains":[{"id":"DBS0349965","label":"bzpN-","summary":"bzpN null","in_stock":true,"genes":[{"name":"bzpN"}],"publications":[]}]}}}`))
+		case strings.Contains(req.Query, "publication("):
+			_, _ = w.Write([]byte(`{"data":{"publication":{"id":"17177856","doi":"10.1111/x","title":"A paper","abstract":"Abstract text","journal":"Differentiation","pub_date":"2006-12-01T00:00:00.000Z","volume":"74","pages":"1-10","pub_type":"journal_article","authors":[{"last_name":"Smith","first_name":"A","initials":"A","rank":"1"}]}}}`))
 		}
 	}))
 }
@@ -263,7 +275,7 @@ func TestMCPToolsSession(t *testing.T) {
 
 	listRes, err := session.ListTools(ctx, nil)
 	require.NoError(t, err)
-	require.Len(t, listRes.Tools, 6)
+	require.Len(t, listRes.Tools, 12)
 
 	t.Run("autocomplete_stocks", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
