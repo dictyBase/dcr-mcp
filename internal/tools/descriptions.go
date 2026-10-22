@@ -25,8 +25,10 @@ const (
 
 	toolGetPlasmid  = "get_plasmid"
 	titleGetPlasmid = "Get a plasmid record"
-	descGetPlasmid  = "Fetch one plasmid record by its DBP ID (for example DBP0391806): " +
-		"summary, keywords, genes, GenBank accession, depositor, publications, and availability."
+	descGetPlasmid  = "Fetch one plasmid record by its DBP ID (for example DBP0391806): summary, keywords, " +
+		"genes, GenBank accession, depositor, publications, availability, and the stock page url. " +
+		"Defaults to detail=summary, which omits the DNA sequence (sequence_length gives its size). " +
+		"Use get_plasmid_sequence when the user needs the sequence."
 
 	toolListPhenotype  = "list_strains_with_phenotype"
 	titleListPhenotype = "List strains with a phenotype"

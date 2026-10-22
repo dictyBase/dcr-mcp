@@ -176,12 +176,13 @@ func executeGetPlasmid(s plasmidState) IOE.IOEither[error, graphql.PlasmidDetail
 
 func newGetPlasmidHandler(
 	client *graphql.Client,
-) mcp.ToolHandlerFor[GetPlasmidInput, graphql.PlasmidDetail] {
+) mcp.ToolHandlerFor[GetPlasmidInput, PlasmidView] {
 	return func(
 		ctx context.Context,
 		_ *mcp.CallToolRequest,
 		input GetPlasmidInput,
-	) (*mcp.CallToolResult, graphql.PlasmidDetail, error) {
+	) (*mcp.CallToolResult, PlasmidView, error) {
+		view := plasmidViewFor(normalizeDetailString(input.Detail))
 		out := F.Pipe4(
 			IOE.Of[error](plasmidState{
 				ctx:    ctx,
@@ -189,11 +190,11 @@ func newGetPlasmidHandler(
 				input:  input,
 			}),
 			IOE.ChainEitherK(validatePlasmidState),
-			IOE.Chain(executeGetPlasmid),
-			ioeutils.ToEither[error, graphql.PlasmidDetail],
+			IOE.Chain(F.Flow2(executeGetPlasmid, IOE.Map[error](view))),
+			ioeutils.ToEither[error, PlasmidView],
 			E.Fold(
-				toOutcomeError[graphql.PlasmidDetail],
-				toOutcomeSuccess[graphql.PlasmidDetail],
+				toOutcomeError[PlasmidView],
+				toOutcomeSuccess[PlasmidView],
 			),
 		)
 		return out.Result, out.Output, out.Err

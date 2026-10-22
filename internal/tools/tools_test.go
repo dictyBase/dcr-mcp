@@ -198,6 +198,15 @@ func TestValidateIDAndPhenotypeInputs(t *testing.T) {
 		_, err = E.Unwrap(tools.ValidateStrainIDInput(tools.GetStrainInput{ID: "DBS0350840", Detail: "everything"}))
 		require.Error(t, err)
 	})
+
+	t.Run("ValidatePlasmidIDInput defaults detail to summary", func(t *testing.T) {
+		got, err := E.Unwrap(tools.ValidatePlasmidIDInput(tools.GetPlasmidInput{ID: "DBP0391806"}))
+		require.NoError(t, err)
+		require.Equal(t, "summary", got.Detail)
+
+		_, err = E.Unwrap(tools.ValidatePlasmidIDInput(tools.GetPlasmidInput{ID: "DBP0391806", Detail: "huge"}))
+		require.Error(t, err)
+	})
 }
 
 func newToolsStubGraphQLServer(t *testing.T) *httptest.Server {

@@ -49,7 +49,8 @@ type GetStrainInput struct {
 
 // GetPlasmidInput defines the JSON Schema parameters for get_plasmid.
 type GetPlasmidInput struct {
-	ID string `json:"id" jsonschema:"dictyBase plasmid ID (for example DBP0391806)"`
+	ID     string `json:"id" jsonschema:"dictyBase plasmid ID (for example DBP0391806)"`
+	Detail string `json:"detail,omitempty" jsonschema:"Response size: summary (default; omits the DNA sequence, at most 5 publications) or full"`
 }
 
 // ListStrainsWithPhenotypeInput defines the JSON Schema parameters for list_strains_with_phenotype.
@@ -181,6 +182,13 @@ var (
 		func(in GetPlasmidInput) string { return in.ID },
 		func(in GetPlasmidInput, id string) GetPlasmidInput {
 			in.ID = id
+			return in
+		},
+	)
+	plasmidDetailLens = L.MakeLens(
+		func(in GetPlasmidInput) string { return in.Detail },
+		func(in GetPlasmidInput, d string) GetPlasmidInput {
+			in.Detail = d
 			return in
 		},
 	)

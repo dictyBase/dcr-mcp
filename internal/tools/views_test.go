@@ -42,3 +42,26 @@ func TestStrainViewFor(t *testing.T) {
 		require.NotNil(t, view.Publications)
 	})
 }
+
+func TestPlasmidViewFor(t *testing.T) {
+	fixture := graphql.PlasmidDetail{
+		ID:           "DBP0391806",
+		Sequence:     "ATGCATGCAT",
+		Publications: make([]graphql.PublicationRef, 6),
+	}
+
+	t.Run("summary drops sequence and keeps its length", func(t *testing.T) {
+		view := F.Pipe1(fixture, tools.PlasmidViewFor("summary"))
+		require.Empty(t, view.Sequence)
+		require.Equal(t, 10, view.SequenceLength)
+		require.Len(t, view.Publications, 5)
+		require.Equal(t, 6, view.PublicationCount)
+		require.Equal(t, "https://dictycr.org/plasmids/DBP0391806", view.URL)
+	})
+
+	t.Run("full keeps sequence", func(t *testing.T) {
+		view := F.Pipe1(fixture, tools.PlasmidViewFor("full"))
+		require.Equal(t, "ATGCATGCAT", view.Sequence)
+		require.Len(t, view.Publications, 6)
+	})
+}

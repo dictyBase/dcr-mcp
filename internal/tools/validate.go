@@ -226,11 +226,16 @@ func validatePlasmidID(in GetPlasmidInput) E.Either[error, string] {
 	)
 }
 
-// ValidatePlasmidIDInput trims and validates GetPlasmidInput.
+func validatePlasmidDetail(in GetPlasmidInput) E.Either[error, string] {
+	return parseDetail(in.Detail)
+}
+
+// ValidatePlasmidIDInput trims and validates GetPlasmidInput and defaults detail to summary.
 func ValidatePlasmidIDInput(in GetPlasmidInput) E.Either[error, GetPlasmidInput] {
-	return F.Pipe1(
+	return F.Pipe2(
 		E.Of[error](in),
 		E.Bind(plasmidIDLens.Set, validatePlasmidID),
+		E.Bind(plasmidDetailLens.Set, validatePlasmidDetail),
 	)
 }
 

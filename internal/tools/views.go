@@ -58,3 +58,43 @@ func strainViewFor(detail string) func(graphql.StrainDetail) StrainView {
 		O.GetOrElse(F.Constant(summaryStrainView)),
 	)
 }
+
+// PlasmidView is the get_plasmid output: the GraphQL record plus presentation fields.
+type PlasmidView struct {
+	graphql.PlasmidDetail
+	URL              string `json:"url"`
+	Detail           string `json:"detail"`
+	SequenceLength   int    `json:"sequence_length"`
+	PublicationCount int    `json:"publication_count"`
+}
+
+func fullPlasmidView(d graphql.PlasmidDetail) PlasmidView {
+	return PlasmidView{
+		PlasmidDetail:    d,
+		URL:              PlasmidURL(d.ID),
+		Detail:           detailFull,
+		SequenceLength:   len(d.Sequence),
+		PublicationCount: A.Size(d.Publications),
+	}
+}
+
+func summaryPlasmidView(d graphql.PlasmidDetail) PlasmidView {
+	view := fullPlasmidView(d)
+	view.Detail = detailSummary
+	view.Sequence = ""
+	view.Publications = F.Pipe1(d.Publications, takeAtMost[graphql.PublicationRef](summaryPublicationCap))
+	return view
+}
+
+var plasmidViews = map[string]func(graphql.PlasmidDetail) PlasmidView{
+	detailSummary: summaryPlasmidView,
+	detailFull:    fullPlasmidView,
+}
+
+func plasmidViewFor(detail string) func(graphql.PlasmidDetail) PlasmidView {
+	return F.Pipe2(
+		plasmidViews,
+		R.Lookup[func(graphql.PlasmidDetail) PlasmidView](detail),
+		O.GetOrElse(F.Constant(summaryPlasmidView)),
+	)
+}
