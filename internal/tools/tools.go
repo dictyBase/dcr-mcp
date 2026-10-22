@@ -19,6 +19,12 @@ func toOutcomeError[Out any](err error) toolCallOutcome[Out] {
 	return toolCallOutcome[Out]{Err: err}
 }
 
+func textCallResult(text string) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: text}},
+	}
+}
+
 // toOutcomeWithMarkdown returns render(output) as text content while the SDK
 // still fills StructuredContent from output.
 func toOutcomeWithMarkdown[Out any](
@@ -26,9 +32,7 @@ func toOutcomeWithMarkdown[Out any](
 ) func(Out) toolCallOutcome[Out] {
 	return func(output Out) toolCallOutcome[Out] {
 		return toolCallOutcome[Out]{
-			Result: &mcp.CallToolResult{
-				Content: []mcp.Content{&mcp.TextContent{Text: render(output)}},
-			},
+			Result: F.Pipe2(output, render, textCallResult),
 			Output: output,
 		}
 	}
