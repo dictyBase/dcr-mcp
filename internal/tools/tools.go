@@ -19,6 +19,21 @@ func toOutcomeError[Out any](err error) toolCallOutcome[Out] {
 	return toolCallOutcome[Out]{Err: err}
 }
 
+// toOutcomeWithMarkdown returns render(output) as text content while the SDK
+// still fills StructuredContent from output.
+func toOutcomeWithMarkdown[Out any](
+	render func(Out) string,
+) func(Out) toolCallOutcome[Out] {
+	return func(output Out) toolCallOutcome[Out] {
+		return toolCallOutcome[Out]{
+			Result: &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: render(output)}},
+			},
+			Output: output,
+		}
+	}
+}
+
 func validateAutocompleteState(
 	s autocompleteState,
 ) E.Either[error, autocompleteState] {
@@ -107,7 +122,7 @@ func newSearchHandler(
 			ioeutils.ToEither[error, SearchResultView],
 			E.Fold(
 				toOutcomeError[SearchResultView],
-				toOutcomeSuccess[SearchResultView],
+				toOutcomeWithMarkdown(renderSearchMarkdown),
 			),
 		)
 		return out.Result, out.Output, out.Err
@@ -151,7 +166,7 @@ func newGetStrainHandler(
 			ioeutils.ToEither[error, StrainView],
 			E.Fold(
 				toOutcomeError[StrainView],
-				toOutcomeSuccess[StrainView],
+				toOutcomeWithMarkdown(renderStrainMarkdown),
 			),
 		)
 		return out.Result, out.Output, out.Err
@@ -195,7 +210,7 @@ func newGetPlasmidHandler(
 			ioeutils.ToEither[error, PlasmidView],
 			E.Fold(
 				toOutcomeError[PlasmidView],
-				toOutcomeSuccess[PlasmidView],
+				toOutcomeWithMarkdown(renderPlasmidMarkdown),
 			),
 		)
 		return out.Result, out.Output, out.Err

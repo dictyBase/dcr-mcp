@@ -6,4 +6,7 @@ var (
 	PlasmidViewFor            = plasmidViewFor
 	ToSearchResultView        = toSearchResultView
 	ToPhenotypeStrainListView = toPhenotypeStrainListView
+	RenderStrainMarkdown      = renderStrainMarkdown
+	RenderPlasmidMarkdown     = renderPlasmidMarkdown
+	RenderSearchMarkdown      = renderSearchMarkdown
 )

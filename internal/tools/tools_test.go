@@ -298,6 +298,13 @@ func TestMCPToolsSession(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, "https://dictycr.org/strains/DBS0350840", structured["url"])
 		require.Equal(t, "summary", structured["detail"])
+
+		require.NotEmpty(t, res.Content)
+		text, ok := res.Content[0].(*mcp.TextContent)
+		require.True(t, ok)
+		require.Contains(t, text.Text, "https://dictycr.org/strains/DBS0350840")
+		require.Contains(t, text.Text, "## triA- (DBS0350840)")
+		require.NotNil(t, res.StructuredContent)
 	})
 
 	t.Run("get_plasmid", func(t *testing.T) {
