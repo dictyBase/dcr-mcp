@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"strconv"
@@ -72,6 +73,7 @@ func NewMCPServer(client *graphql.Client) *mcp.Server {
 	}, &mcp.ServerOptions{
 		Instructions: serverInstructions,
 	})
+	srv.AddReceivingMiddleware(ToolCallLogger(slog.Default()))
 	tools.RegisterAll(srv, client)
 	prompts.RegisterAll(srv)
 	return srv
