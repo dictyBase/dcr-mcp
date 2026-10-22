@@ -212,9 +212,10 @@ func newToolsStubGraphQLServer(t *testing.T) *httptest.Server {
 	}))
 }
 
-func TestMCPToolsSession(t *testing.T) {
+func newToolsSession(t *testing.T) *mcp.ClientSession {
+	t.Helper()
 	gqlSrv := newToolsStubGraphQLServer(t)
-	defer gqlSrv.Close()
+	t.Cleanup(gqlSrv.Close)
 
 	gqlClient := graphql.NewClient(gqlSrv.URL, gqlSrv.Client())
 	mcpSrv := mcp.NewServer(&mcp.Implementation{Name: "dcr-mcp", Version: "1.0.0"}, nil)
@@ -228,7 +229,13 @@ func TestMCPToolsSession(t *testing.T) {
 	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
 	session, err := mcpClient.Connect(ctx, t2, nil)
 	require.NoError(t, err)
-	defer func() { _ = session.Close() }()
+	t.Cleanup(func() { _ = session.Close() })
+	return session
+}
+
+func TestMCPToolsSession(t *testing.T) {
+	session := newToolsSession(t)
+	ctx := context.Background()
 
 	listRes, err := session.ListTools(ctx, nil)
 	require.NoError(t, err)
