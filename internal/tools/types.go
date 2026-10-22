@@ -20,6 +20,11 @@ const (
 
 	defaultPhenotypeLimit = 10
 	maxPhenotypeLimit     = 100
+
+	detailSummary         = "summary"
+	detailFull            = "full"
+	summaryPhenotypeCap   = 10
+	summaryPublicationCap = 5
 )
 
 // AutocompleteStocksInput defines the JSON Schema parameters for autocomplete_stocks.
@@ -38,7 +43,8 @@ type SearchStocksInput struct {
 
 // GetStrainInput defines the JSON Schema parameters for get_strain.
 type GetStrainInput struct {
-	ID string `json:"id" jsonschema:"dictyBase strain ID (for example DBS0350840)"`
+	ID     string `json:"id" jsonschema:"dictyBase strain ID (for example DBS0350840)"`
+	Detail string `json:"detail,omitempty" jsonschema:"Response size: summary (default; at most 10 phenotypes and 5 publications) or full"`
 }
 
 // GetPlasmidInput defines the JSON Schema parameters for get_plasmid.
@@ -153,6 +159,13 @@ var (
 		func(in GetStrainInput) string { return in.ID },
 		func(in GetStrainInput, id string) GetStrainInput {
 			in.ID = id
+			return in
+		},
+	)
+	strainDetailLens = L.MakeLens(
+		func(in GetStrainInput) string { return in.Detail },
+		func(in GetStrainInput, d string) GetStrainInput {
+			in.Detail = d
 			return in
 		},
 	)

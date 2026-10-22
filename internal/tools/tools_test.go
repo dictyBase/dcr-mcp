@@ -185,6 +185,19 @@ func TestValidateIDAndPhenotypeInputs(t *testing.T) {
 		}))
 		require.Error(t, err)
 	})
+
+	t.Run("ValidateStrainIDInput defaults detail to summary and rejects unknown", func(t *testing.T) {
+		got, err := E.Unwrap(tools.ValidateStrainIDInput(tools.GetStrainInput{ID: "DBS0350840"}))
+		require.NoError(t, err)
+		require.Equal(t, "summary", got.Detail)
+
+		got, err = E.Unwrap(tools.ValidateStrainIDInput(tools.GetStrainInput{ID: "DBS0350840", Detail: " FULL "}))
+		require.NoError(t, err)
+		require.Equal(t, "full", got.Detail)
+
+		_, err = E.Unwrap(tools.ValidateStrainIDInput(tools.GetStrainInput{ID: "DBS0350840", Detail: "everything"}))
+		require.Error(t, err)
+	})
 }
 
 func newToolsStubGraphQLServer(t *testing.T) *httptest.Server {
@@ -269,6 +282,11 @@ func TestMCPToolsSession(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, res.IsError)
 		require.NotNil(t, res.StructuredContent)
+
+		structured, ok := res.StructuredContent.(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "https://dictycr.org/strains/DBS0350840", structured["url"])
+		require.Equal(t, "summary", structured["detail"])
 	})
 
 	t.Run("get_plasmid", func(t *testing.T) {

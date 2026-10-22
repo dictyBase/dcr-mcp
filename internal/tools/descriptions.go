@@ -19,7 +19,9 @@ const (
 	toolGetStrain  = "get_strain"
 	titleGetStrain = "Get a strain record"
 	descGetStrain  = "Fetch one Dictyostelium strain record by its DBS ID (for example DBS0350840): " +
-		"genotype, phenotypes, depositor, publications, and whether it is in stock."
+		"genotype, phenotypes, depositor, publications, availability, and the stock page url. " +
+		"Defaults to detail=summary (at most 10 phenotypes and 5 publications; phenotype_count and " +
+		"publication_count give the totals). Pass detail=full only when the user needs every annotation."
 
 	toolGetPlasmid  = "get_plasmid"
 	titleGetPlasmid = "Get a plasmid record"

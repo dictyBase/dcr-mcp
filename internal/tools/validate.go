@@ -17,6 +17,11 @@ import (
 )
 
 var (
+	knownDetails = map[string]string{
+		detailSummary: detailSummary,
+		detailFull:    detailFull,
+	}
+
 	knownEntities = map[string]graphql.StockEntityType{
 		string(graphql.StockEntityAll):     graphql.StockEntityAll,
 		string(graphql.StockEntityStrain):  graphql.StockEntityStrain,
@@ -176,11 +181,40 @@ func validateStrainID(in GetStrainInput) E.Either[error, string] {
 	)
 }
 
-// ValidateStrainIDInput trims and validates GetStrainInput.
+func normalizeDetailString(raw string) string {
+	return F.Pipe3(
+		raw,
+		strings.TrimSpace,
+		O.FromPredicate(S.IsNonEmpty),
+		O.Fold(
+			F.Constant(detailSummary),
+			strings.ToLower,
+		),
+	)
+}
+
+func parseDetail(raw string) E.Either[error, string] {
+	toErr := F.Constant(fmt.Errorf(
+		"invalid detail %q: expected summary or full",
+		raw,
+	))
+	return F.Pipe2(
+		knownDetails,
+		R.Lookup[string](normalizeDetailString(raw)),
+		E.FromOption[string](toErr),
+	)
+}
+
+func validateStrainDetail(in GetStrainInput) E.Either[error, string] {
+	return parseDetail(in.Detail)
+}
+
+// ValidateStrainIDInput trims and validates GetStrainInput and defaults detail to summary.
 func ValidateStrainIDInput(in GetStrainInput) E.Either[error, GetStrainInput] {
-	return F.Pipe1(
+	return F.Pipe2(
 		E.Of[error](in),
 		E.Bind(strainIDLens.Set, validateStrainID),
+		E.Bind(strainDetailLens.Set, validateStrainDetail),
 	)
 }
 

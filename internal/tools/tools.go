@@ -132,12 +132,13 @@ func executeGetStrain(s strainState) IOE.IOEither[error, graphql.StrainDetail] {
 
 func newGetStrainHandler(
 	client *graphql.Client,
-) mcp.ToolHandlerFor[GetStrainInput, graphql.StrainDetail] {
+) mcp.ToolHandlerFor[GetStrainInput, StrainView] {
 	return func(
 		ctx context.Context,
 		_ *mcp.CallToolRequest,
 		input GetStrainInput,
-	) (*mcp.CallToolResult, graphql.StrainDetail, error) {
+	) (*mcp.CallToolResult, StrainView, error) {
+		view := strainViewFor(normalizeDetailString(input.Detail))
 		out := F.Pipe4(
 			IOE.Of[error](strainState{
 				ctx:    ctx,
@@ -145,11 +146,11 @@ func newGetStrainHandler(
 				input:  input,
 			}),
 			IOE.ChainEitherK(validateStrainState),
-			IOE.Chain(executeGetStrain),
-			ioeutils.ToEither[error, graphql.StrainDetail],
+			IOE.Chain(F.Flow2(executeGetStrain, IOE.Map[error](view))),
+			ioeutils.ToEither[error, StrainView],
 			E.Fold(
-				toOutcomeError[graphql.StrainDetail],
-				toOutcomeSuccess[graphql.StrainDetail],
+				toOutcomeError[StrainView],
+				toOutcomeSuccess[StrainView],
 			),
 		)
 		return out.Result, out.Output, out.Err
