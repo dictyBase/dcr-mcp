@@ -144,6 +144,7 @@ func newStubGraphQLServer(t *testing.T) *httptest.Server {
 								"journal": "PloS one",
 								"volume": "6",
 								"pages": "e21765",
+								"doi": "10.1/x",
 								"authors": [{"last_name": "Phillips"}]
 							}]
 						}]
@@ -239,5 +240,6 @@ func TestClientOperations(t *testing.T) {
 		require.Equal(t, int64(1728057313873), res.NextCursor)
 		require.Len(t, res.Strains, 1)
 		require.Equal(t, "DBS0349965", res.Strains[0].ID)
+		require.Equal(t, "10.1/x", res.Strains[0].Publications[0].DOI)
 	})
 }

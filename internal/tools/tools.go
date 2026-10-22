@@ -89,13 +89,13 @@ func executeSearch(s searchState) IOE.IOEither[error, graphql.SearchResult] {
 
 func newSearchHandler(
 	client *graphql.Client,
-) mcp.ToolHandlerFor[SearchStocksInput, graphql.SearchResult] {
+) mcp.ToolHandlerFor[SearchStocksInput, SearchResultView] {
 	return func(
 		ctx context.Context,
 		_ *mcp.CallToolRequest,
 		input SearchStocksInput,
-	) (*mcp.CallToolResult, graphql.SearchResult, error) {
-		out := F.Pipe4(
+	) (*mcp.CallToolResult, SearchResultView, error) {
+		out := F.Pipe5(
 			IOE.Of[error](searchState{
 				ctx:    ctx,
 				client: client,
@@ -103,10 +103,11 @@ func newSearchHandler(
 			}),
 			IOE.ChainEitherK(validateSearchState),
 			IOE.Chain(executeSearch),
-			ioeutils.ToEither[error, graphql.SearchResult],
+			IOE.Map[error](toSearchResultView),
+			ioeutils.ToEither[error, SearchResultView],
 			E.Fold(
-				toOutcomeError[graphql.SearchResult],
-				toOutcomeSuccess[graphql.SearchResult],
+				toOutcomeError[SearchResultView],
+				toOutcomeSuccess[SearchResultView],
 			),
 		)
 		return out.Result, out.Output, out.Err
@@ -257,13 +258,13 @@ func executeListPhenotypeStrains(
 
 func newListPhenotypeStrainsHandler(
 	client *graphql.Client,
-) mcp.ToolHandlerFor[ListStrainsWithPhenotypeInput, graphql.PhenotypeStrainList] {
+) mcp.ToolHandlerFor[ListStrainsWithPhenotypeInput, PhenotypeStrainListView] {
 	return func(
 		ctx context.Context,
 		_ *mcp.CallToolRequest,
 		input ListStrainsWithPhenotypeInput,
-	) (*mcp.CallToolResult, graphql.PhenotypeStrainList, error) {
-		out := F.Pipe4(
+	) (*mcp.CallToolResult, PhenotypeStrainListView, error) {
+		out := F.Pipe5(
 			IOE.Of[error](phenotypeListState{
 				ctx:    ctx,
 				client: client,
@@ -271,10 +272,11 @@ func newListPhenotypeStrainsHandler(
 			}),
 			IOE.ChainEitherK(validatePhenotypeState),
 			IOE.Chain(executeListPhenotypeStrains),
-			ioeutils.ToEither[error, graphql.PhenotypeStrainList],
+			IOE.Map[error](toPhenotypeStrainListView),
+			ioeutils.ToEither[error, PhenotypeStrainListView],
 			E.Fold(
-				toOutcomeError[graphql.PhenotypeStrainList],
-				toOutcomeSuccess[graphql.PhenotypeStrainList],
+				toOutcomeError[PhenotypeStrainListView],
+				toOutcomeSuccess[PhenotypeStrainListView],
 			),
 		)
 		return out.Result, out.Output, out.Err

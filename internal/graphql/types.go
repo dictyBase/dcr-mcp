@@ -133,6 +133,7 @@ type PhenotypePublicationRef struct {
 	Journal string      `graphql:"journal" json:"journal"`
 	Volume  string      `graphql:"volume" json:"volume"`
 	Pages   string      `graphql:"pages" json:"pages"`
+	DOI     string      `graphql:"doi" json:"doi,omitempty"`
 	Authors []AuthorRef `graphql:"authors" json:"authors"`
 }
 

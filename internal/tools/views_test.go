@@ -65,3 +65,23 @@ func TestPlasmidViewFor(t *testing.T) {
 		require.Len(t, view.Publications, 6)
 	})
 }
+
+func TestSearchAndPhenotypeViews(t *testing.T) {
+	search := tools.ToSearchResultView(graphql.SearchResult{
+		Results: []graphql.StockSearchHit{
+			{ID: "DBS1", Entity: graphql.StockEntityStrain},
+			{ID: "DBP1", Entity: graphql.StockEntityPlasmid},
+		},
+		Limit: 15, TotalCount: 2,
+	})
+	require.Equal(t, "https://dictycr.org/strains/DBS1", search.Results[0].URL)
+	require.Equal(t, "https://dictycr.org/plasmids/DBP1", search.Results[1].URL)
+	require.Equal(t, 2, search.TotalCount)
+
+	pheno := tools.ToPhenotypeStrainListView(graphql.PhenotypeStrainList{
+		Strains:    []graphql.PhenotypeStrainItem{{ID: "DBS9"}},
+		NextCursor: 42, TotalCount: 1,
+	})
+	require.Equal(t, "https://dictycr.org/strains/DBS9", pheno.Strains[0].URL)
+	require.EqualValues(t, 42, pheno.NextCursor)
+}

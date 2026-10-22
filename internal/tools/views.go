@@ -139,3 +139,53 @@ func toPlasmidSequence(d graphql.PlasmidDetail) PlasmidSequence {
 		URL:    PlasmidURL(d.ID),
 	}
 }
+
+// SearchHitView is one search_stocks hit plus its stock page url.
+type SearchHitView struct {
+	graphql.StockSearchHit
+	URL string `json:"url"`
+}
+
+// SearchResultView is the search_stocks output.
+type SearchResultView struct {
+	Results    []SearchHitView `json:"results"`
+	Limit      int             `json:"limit"`
+	TotalCount int             `json:"total_count"`
+}
+
+// PhenotypeStrainView is one list_strains_with_phenotype item plus its stock page url.
+type PhenotypeStrainView struct {
+	graphql.PhenotypeStrainItem
+	URL string `json:"url"`
+}
+
+// PhenotypeStrainListView is the list_strains_with_phenotype output.
+type PhenotypeStrainListView struct {
+	Strains    []PhenotypeStrainView `json:"strains"`
+	NextCursor int64                 `json:"next_cursor"`
+	TotalCount int                   `json:"total_count"`
+}
+
+func toSearchHitView(h graphql.StockSearchHit) SearchHitView {
+	return SearchHitView{StockSearchHit: h, URL: StockURL(h.Entity, h.ID)}
+}
+
+func toSearchResultView(r graphql.SearchResult) SearchResultView {
+	return SearchResultView{
+		Results:    F.Pipe1(r.Results, A.Map(toSearchHitView)),
+		Limit:      r.Limit,
+		TotalCount: r.TotalCount,
+	}
+}
+
+func toPhenotypeStrainView(item graphql.PhenotypeStrainItem) PhenotypeStrainView {
+	return PhenotypeStrainView{PhenotypeStrainItem: item, URL: StrainURL(item.ID)}
+}
+
+func toPhenotypeStrainListView(l graphql.PhenotypeStrainList) PhenotypeStrainListView {
+	return PhenotypeStrainListView{
+		Strains:    F.Pipe1(l.Strains, A.Map(toPhenotypeStrainView)),
+		NextCursor: l.NextCursor,
+		TotalCount: l.TotalCount,
+	}
+}
