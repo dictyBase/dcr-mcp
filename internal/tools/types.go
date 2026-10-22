@@ -53,6 +53,11 @@ type GetPlasmidInput struct {
 	Detail string `json:"detail,omitempty" jsonschema:"Response size: summary (default; omits the DNA sequence, at most 5 publications) or full"`
 }
 
+// GetPlasmidSequenceInput defines the JSON Schema parameters for get_plasmid_sequence.
+type GetPlasmidSequenceInput struct {
+	ID string `json:"id" jsonschema:"dictyBase plasmid ID (for example DBP0391806)"`
+}
+
 // ListStrainsWithPhenotypeInput defines the JSON Schema parameters for list_strains_with_phenotype.
 type ListStrainsWithPhenotypeInput struct {
 	Phenotype string `json:"phenotype" jsonschema:"Phenotype annotation name (for example increased growth rate)"`

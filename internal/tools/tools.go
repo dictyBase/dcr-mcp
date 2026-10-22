@@ -201,6 +201,37 @@ func newGetPlasmidHandler(
 	}
 }
 
+func newGetPlasmidSequenceHandler(
+	client *graphql.Client,
+) mcp.ToolHandlerFor[GetPlasmidSequenceInput, PlasmidSequence] {
+	return func(
+		ctx context.Context,
+		_ *mcp.CallToolRequest,
+		input GetPlasmidSequenceInput,
+	) (*mcp.CallToolResult, PlasmidSequence, error) {
+		toSequence := F.Flow3(
+			executeGetPlasmid,
+			IOE.ChainEitherK(E.FromPredicate(hasSequence, errNoSequence)),
+			IOE.Map[error](toPlasmidSequence),
+		)
+		out := F.Pipe4(
+			IOE.Of[error](plasmidState{
+				ctx:    ctx,
+				client: client,
+				input:  GetPlasmidInput{ID: input.ID, Detail: detailFull},
+			}),
+			IOE.ChainEitherK(validatePlasmidState),
+			IOE.Chain(toSequence),
+			ioeutils.ToEither[error, PlasmidSequence],
+			E.Fold(
+				toOutcomeError[PlasmidSequence],
+				toOutcomeSuccess[PlasmidSequence],
+			),
+		)
+		return out.Result, out.Output, out.Err
+	}
+}
+
 func validatePhenotypeState(
 	s phenotypeListState,
 ) E.Either[error, phenotypeListState] {
@@ -291,6 +322,13 @@ func RegisterAll(srv *mcp.Server, client *graphql.Client) {
 		Description: descGetPlasmid,
 		Annotations: readOnlyTool(titleGetPlasmid),
 	}, newGetPlasmidHandler(client))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        toolGetPlasmidSequence,
+		Title:       titleGetPlasmidSequence,
+		Description: descGetPlasmidSequence,
+		Annotations: readOnlyTool(titleGetPlasmidSequence),
+	}, newGetPlasmidSequenceHandler(client))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        toolListPhenotype,

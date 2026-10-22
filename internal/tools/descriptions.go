@@ -30,6 +30,12 @@ const (
 		"Defaults to detail=summary, which omits the DNA sequence (sequence_length gives its size). " +
 		"Use get_plasmid_sequence when the user needs the sequence."
 
+	toolGetPlasmidSequence  = "get_plasmid_sequence"
+	titleGetPlasmidSequence = "Get a plasmid DNA sequence"
+	descGetPlasmidSequence  = "Return the DNA sequence of one plasmid (DBP ID) as FASTA with its length. " +
+		"Use only when the user explicitly needs the sequence (primer design, cloning, alignment); " +
+		"sequences can be several kilobases."
+
 	toolListPhenotype  = "list_strains_with_phenotype"
 	titleListPhenotype = "List strains with a phenotype"
 	descListPhenotype  = "List strains annotated with one exact phenotype term (for example " +

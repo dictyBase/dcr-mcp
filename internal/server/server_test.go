@@ -30,6 +30,8 @@ func newServerStubGraphQL(t *testing.T) *httptest.Server {
 			_, _ = w.Write([]byte(`{"data":{"searchStocks":{"limit":50,"totalCount":1,"results":[{"id":"DBS0350840","entity":"STRAIN","field":"GENOTYPE","display_text":"act15:triA","score":1011.4,"summary":"triA null","strain_label":"triA-","in_stock":true}]}}}`))
 		case strings.Contains(req.Query, "strain("):
 			_, _ = w.Write([]byte(`{"data":{"strain":{"id":"DBS0350840","label":"triA-","summary":"triA null","species":"Dictyostelium discoideum","systematic_name":"DBS0350840","plasmid":"","dbxrefs":[],"in_stock":true,"genotypes":["axeA2"],"mutagenesis_method":"","genetic_modification":"exogenous mutation","names":["triA-"],"characteristics":["axenic"],"parent":{"id":"","label":""},"depositor":{"first_name":"Dicty","last_name":"Stock Center"},"genes":[{"name":"triA"}],"publications":[],"phenotypes":[]}}}`))
+		case strings.Contains(req.Query, "plasmid(") && req.Variables["id"] == "DBP0000001":
+			_, _ = w.Write([]byte(`{"data":{"plasmid":{"id":"DBP0000001","name":"pTest","summary":"","image_map":"","sequence":"ATGC","keywords":[],"genbank_accession":"","in_stock":true,"dbxrefs":[],"depositor":{"first_name":"","last_name":""},"genes":[],"publications":[]}}}`))
 		case strings.Contains(req.Query, "plasmid("):
 			_, _ = w.Write([]byte(`{"data":{"plasmid":{"id":"DBP0391806","name":"pDGB_O2_0006","summary":"GoldenBraid","image_map":"","sequence":"","keywords":[],"genbank_accession":"","in_stock":true,"dbxrefs":[],"depositor":{"first_name":"Gadi","last_name":"Shaulsky"},"genes":[],"publications":[]}}}`))
 		case strings.Contains(req.Query, "listStrainsWithAnnotation"):
@@ -93,7 +95,7 @@ func TestHTTPHandler(t *testing.T) {
 		require.Contains(t, resp.Header.Get("Access-Control-Expose-Headers"), "Mcp-Session-Id")
 	})
 
-	t.Run("StreamableClientTransport connects and calls all 5 tools over HTTP", func(t *testing.T) {
+	t.Run("StreamableClientTransport connects and calls all 6 tools over HTTP", func(t *testing.T) {
 		ctx := context.Background()
 		transport := &mcp.StreamableClientTransport{
 			Endpoint:             httpSrv.URL + "/mcp",
@@ -107,7 +109,7 @@ func TestHTTPHandler(t *testing.T) {
 
 		toolsRes, err := session.ListTools(ctx, nil)
 		require.NoError(t, err)
-		require.Len(t, toolsRes.Tools, 5)
+		require.Len(t, toolsRes.Tools, 6)
 
 		for _, tc := range []struct {
 			name string
@@ -117,6 +119,7 @@ func TestHTTPHandler(t *testing.T) {
 			{name: "search_stocks", args: map[string]any{"query": "act"}},
 			{name: "get_strain", args: map[string]any{"id": "DBS0350840"}},
 			{name: "get_plasmid", args: map[string]any{"id": "DBP0391806"}},
+			{name: "get_plasmid_sequence", args: map[string]any{"id": "DBP0000001"}},
 			{name: "list_strains_with_phenotype", args: map[string]any{"phenotype": "increased growth rate"}},
 		} {
 			res, callErr := session.CallTool(ctx, &mcp.CallToolParams{

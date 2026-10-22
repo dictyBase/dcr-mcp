@@ -1,10 +1,15 @@
 package tools
 
 import (
+	"fmt"
+	"strings"
+
 	A "github.com/IBM/fp-go/v2/array"
 	F "github.com/IBM/fp-go/v2/function"
 	O "github.com/IBM/fp-go/v2/option"
+	P "github.com/IBM/fp-go/v2/predicate"
 	R "github.com/IBM/fp-go/v2/record"
+	S "github.com/IBM/fp-go/v2/string"
 	predarrays "github.com/dictyBase/fp-go-loom/predicate/array"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
 )
@@ -97,4 +102,40 @@ func plasmidViewFor(detail string) func(graphql.PlasmidDetail) PlasmidView {
 		R.Lookup[func(graphql.PlasmidDetail) PlasmidView](detail),
 		O.GetOrElse(F.Constant(summaryPlasmidView)),
 	)
+}
+
+// PlasmidSequence is the get_plasmid_sequence output.
+type PlasmidSequence struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Length int    `json:"length"`
+	Format string `json:"format"`
+	FASTA  string `json:"fasta"`
+	URL    string `json:"url"`
+}
+
+var hasSequence = F.Pipe1(
+	S.IsNonEmpty,
+	P.ContraMap(func(d graphql.PlasmidDetail) string { return d.Sequence }),
+)
+
+func errNoSequence(d graphql.PlasmidDetail) error {
+	return fmt.Errorf("plasmid %s has no sequence on record", d.ID)
+}
+
+// compactSequence removes all whitespace; single-line FASTA is valid and simplest for LLM clients.
+func compactSequence(seq string) string {
+	return strings.Join(strings.Fields(seq), "")
+}
+
+func toPlasmidSequence(d graphql.PlasmidDetail) PlasmidSequence {
+	seq := compactSequence(d.Sequence)
+	return PlasmidSequence{
+		ID:     d.ID,
+		Name:   d.Name,
+		Length: len(seq),
+		Format: "fasta",
+		FASTA:  fmt.Sprintf(">%s %s\n%s", d.ID, d.Name, seq),
+		URL:    PlasmidURL(d.ID),
+	}
 }
