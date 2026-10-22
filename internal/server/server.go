@@ -23,6 +23,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/go-chi/httprate"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -34,6 +35,8 @@ const (
 	corsMaxAgeSeconds = 300
 	readHeaderTimeout = 10 * time.Second
 	shutdownTimeout   = 5 * time.Second
+	defaultRateLimit  = 120
+	rateLimitWindow   = time.Minute
 
 	serverInstructions = "dcr-mcp gives read-only access to the Dicty Stock Center catalog of Dictyostelium " +
 		"strains (DBS ids) and plasmids (DBP ids). Guidance: " +
@@ -53,6 +56,8 @@ type Config struct {
 	Port            int
 	Stateless       bool
 	AllowedOrigins  []string
+	// RateLimit is the max /mcp requests per client IP per minute; 0 uses the default.
+	RateLimit int
 }
 
 var isServerClosedErr = func(err error) bool {
@@ -114,6 +119,22 @@ func healthzHandler(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(healthzBody))
 }
 
+func resolveRateLimit(limit int) int {
+	return F.Pipe2(
+		limit,
+		O.FromPredicate(P.IsNonZero[int]()),
+		O.GetOrElse(F.Constant(defaultRateLimit)),
+	)
+}
+
+func clientIPKey(r *http.Request) (string, error) {
+	return F.Pipe2(
+		r.Context(),
+		middleware.GetClientIP,
+		httprate.CanonicalizeIP,
+	), nil
+}
+
 // NewHTTPHandler constructs the chi router serving /healthz and /mcp (Streamable HTTP + chi middlewares).
 func NewHTTPHandler(cfg Config) http.Handler {
 	gqlClient := graphql.NewClient(cfg.GraphQLEndpoint, nil)
@@ -129,12 +150,21 @@ func NewHTTPHandler(cfg Config) http.Handler {
 	)
 
 	corsMiddleware := newCORSHandler(cfg.AllowedOrigins)
+	rateLimiter := httprate.LimitBy(resolveRateLimit(cfg.RateLimit), rateLimitWindow, clientIPKey)
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Recoverer)
+	router.Use(middleware.ClientIPFromXFF(
+		"127.0.0.0/8",
+		"::1/128",
+		"10.0.0.0/8",
+		"172.16.0.0/12",
+		"192.168.0.0/16",
+		"fc00::/7",
+	))
 	router.Use(corsMiddleware)
 	router.Get("/healthz", healthzHandler)
-	router.Handle("/mcp", streamHandler)
+	router.With(rateLimiter).Handle("/mcp", streamHandler)
 	return router
 }
 

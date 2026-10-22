@@ -149,3 +149,38 @@ func TestServerInstructions(t *testing.T) {
 	require.Contains(t, instructions, "suggest_phenotype_terms")
 	require.Contains(t, instructions, "url")
 }
+
+func TestRateLimit(t *testing.T) {
+	gqlSrv := newServerStubGraphQL(t)
+	defer gqlSrv.Close()
+
+	handler := server.NewHTTPHandler(server.Config{
+		GraphQLEndpoint: gqlSrv.URL,
+		Stateless:       true,
+		AllowedOrigins:  []string{"*"},
+		RateLimit:       2,
+	})
+	httpSrv := httptest.NewServer(handler)
+	defer httpSrv.Close()
+
+	post := func() int {
+		body := strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/list"}`)
+		req, err := http.NewRequest(http.MethodPost, httpSrv.URL+"/mcp", body)
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		resp, err := httpSrv.Client().Do(req)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		return resp.StatusCode
+	}
+
+	require.NotEqual(t, http.StatusTooManyRequests, post())
+	require.NotEqual(t, http.StatusTooManyRequests, post())
+	require.Equal(t, http.StatusTooManyRequests, post())
+
+	resp, err := http.Get(httpSrv.URL + "/healthz")
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode, "healthz is not rate limited")
+}

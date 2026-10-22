@@ -43,4 +43,14 @@ func TestCLIStartServer(t *testing.T) {
 		})
 		require.Error(t, err)
 	})
+
+	t.Run("start-server rejects non-positive rate-limit", func(t *testing.T) {
+		app := NewApp()
+		err := app.Run(context.Background(), []string{
+			"dcr-mcp",
+			"start-server",
+			"--rate-limit", "0",
+		})
+		require.Error(t, err)
+	})
 }
