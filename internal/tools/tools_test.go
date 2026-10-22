@@ -300,3 +300,24 @@ func TestMCPToolsSession(t *testing.T) {
 		require.True(t, res.IsError)
 	})
 }
+
+func TestToolMetadata(t *testing.T) {
+	session := newToolsSession(t)
+	listRes, err := session.ListTools(context.Background(), nil)
+	require.NoError(t, err)
+
+	for _, tool := range listRes.Tools {
+		t.Run(tool.Name, func(t *testing.T) {
+			require.NotEmpty(t, tool.Title)
+			require.NotNil(t, tool.Annotations)
+			require.Equal(t, tool.Title, tool.Annotations.Title)
+			require.True(t, tool.Annotations.ReadOnlyHint)
+			require.True(t, tool.Annotations.IdempotentHint)
+			require.NotNil(t, tool.Annotations.DestructiveHint)
+			require.False(t, *tool.Annotations.DestructiveHint)
+			require.NotNil(t, tool.Annotations.OpenWorldHint)
+			require.False(t, *tool.Annotations.OpenWorldHint)
+			require.GreaterOrEqual(t, len(tool.Description), 80, "description must explain when to use the tool")
+		})
+	}
+}

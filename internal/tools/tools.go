@@ -248,30 +248,52 @@ func newListPhenotypeStrainsHandler(
 	}
 }
 
-// RegisterAll registers all five stock center MCP tools on srv.
+// readOnlyTool marks a tool as a side-effect-free lookup against the closed
+// dictyBase catalog so web clients can call it without a confirmation prompt.
+func readOnlyTool(title string) *mcp.ToolAnnotations {
+	return &mcp.ToolAnnotations{
+		Title:           title,
+		ReadOnlyHint:    true,
+		IdempotentHint:  true,
+		DestructiveHint: new(false),
+		OpenWorldHint:   new(false),
+	}
+}
+
+// RegisterAll registers all stock center MCP tools on srv.
 func RegisterAll(srv *mcp.Server, client *graphql.Client) {
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "autocomplete_stocks",
-		Description: "Return type-ahead autocomplete suggestions for dictyBase strains and plasmids.",
+		Name:        toolAutocomplete,
+		Title:       titleAutocomplete,
+		Description: descAutocomplete,
+		Annotations: readOnlyTool(titleAutocomplete),
 	}, newAutocompleteHandler(client))
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "search_stocks",
-		Description: "Run a full-text search across dictyBase strains and plasmids.",
+		Name:        toolSearch,
+		Title:       titleSearch,
+		Description: descSearch,
+		Annotations: readOnlyTool(titleSearch),
 	}, newSearchHandler(client))
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "get_strain",
-		Description: "Fetch a single dictyBase strain by its ID (e.g. DBS0350840).",
+		Name:        toolGetStrain,
+		Title:       titleGetStrain,
+		Description: descGetStrain,
+		Annotations: readOnlyTool(titleGetStrain),
 	}, newGetStrainHandler(client))
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "get_plasmid",
-		Description: "Fetch a single dictyBase plasmid by its ID (e.g. DBP0391806).",
+		Name:        toolGetPlasmid,
+		Title:       titleGetPlasmid,
+		Description: descGetPlasmid,
+		Annotations: readOnlyTool(titleGetPlasmid),
 	}, newGetPlasmidHandler(client))
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "list_strains_with_phenotype",
-		Description: "List dictyBase strains annotated with a specific phenotype term.",
+		Name:        toolListPhenotype,
+		Title:       titleListPhenotype,
+		Description: descListPhenotype,
+		Annotations: readOnlyTool(titleListPhenotype),
 	}, newListPhenotypeStrainsHandler(client))
 }
