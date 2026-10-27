@@ -4,7 +4,7 @@ go 1.26.8
 
 require (
 	github.com/IBM/fp-go/v2 v2.13.0
-	github.com/dictyBase/fp-go-loom v0.0.0-20261017160436-45e4f096bd46
+	github.com/dictyBase/fp-go-loom v0.1.0
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2
 	github.com/go-chi/httprate v0.16.1
