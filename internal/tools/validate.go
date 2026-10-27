@@ -18,6 +18,8 @@ import (
 	"github.com/dictybase/dcr-mcp/internal/graphql"
 )
 
+const defaultEntityStr = string(graphql.StockEntityAll)
+
 var (
 	knownDetails = map[string]string{
 		detailSummary: detailSummary,
@@ -90,8 +92,6 @@ func defaultIfZeroInt(dflt int) func(int) int {
 		O.GetOrElse(F.Constant(dflt)),
 	)
 }
-
-const defaultEntityStr = string(graphql.StockEntityAll)
 
 func normalizeEntityString(raw string) string {
 	return F.Pipe3(

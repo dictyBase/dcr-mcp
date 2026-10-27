@@ -26,144 +26,224 @@ func newStubGraphQLServer(t *testing.T) *httptest.Server {
 		var req gqlRequest
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
 		w.Header().Set("Content-Type", "application/json")
-
-		switch {
-		case strings.Contains(req.Query, "listStockSuggestions"):
-			_, _ = w.Write([]byte(`{
-				"data": {
-					"listStockSuggestions": {
-						"limit": 2,
-						"totalCount": 1,
-						"suggestions": [
-							{
-								"id": "DBS0350026",
-								"entity": "STRAIN",
-								"field": "GENOTYPE",
-								"display_text": "act15:mip1",
-								"score": 1013.5
-							}
-						]
-					}
-				}
-			}`))
-		case strings.Contains(req.Query, "searchStocks"):
-			_, _ = w.Write([]byte(`{
-				"data": {
-					"searchStocks": {
-						"limit": 2,
-						"totalCount": 1,
-						"results": [
-							{
-								"id": "DBS0350840",
-								"entity": "STRAIN",
-								"field": "GENOTYPE",
-								"display_text": "act15:triA",
-								"score": 1011.4,
-								"summary": "triA null cells",
-								"strain_label": "triA-",
-								"in_stock": true
-							}
-						]
-					}
-				}
-			}`))
-		case strings.Contains(req.Query, "strain("):
-			if req.Variables["id"] == "MISSING" {
-				_, _ = w.Write([]byte(`{
-					"errors": [{"message": "strain not found"}]
-				}`))
-				return
-			}
-			_, _ = w.Write([]byte(`{
-				"data": {
-					"strain": {
-						"id": "DBS0350840",
-						"label": "triA-",
-						"summary": "triA null cells",
-						"species": "Dictyostelium discoideum",
-						"systematic_name": "DBS0350840",
-						"plasmid": "",
-						"dbxrefs": null,
-						"in_stock": true,
-						"genotypes": ["axeA2"],
-						"mutagenesis_method": "",
-						"genetic_modification": "exogenous mutation",
-						"names": ["triA-"],
-						"characteristics": ["axenic"],
-						"parent": {"id": "", "label": ""},
-						"depositor": {"first_name": "Dicty", "last_name": "Stock Center"},
-						"genes": [{"name": "triA"}],
-						"publications": [{
-							"id": "17177856",
-							"pub_date": "2006-12-01T00:00:00.000Z",
-							"title": "Trishanku",
-							"journal": "Differentiation",
-							"volume": "74",
-							"pages": "596-607",
-							"doi": "10.1111/test",
-							"authors": [{"last_name": "Jaiswal"}]
-						}],
-						"phenotypes": []
-					}
-				}
-			}`))
-		case strings.Contains(req.Query, "plasmid("):
-			_, _ = w.Write([]byte(`{
-				"data": {
-					"plasmid": {
-						"id": "DBP0391806",
-						"name": "pDGB_O2_0006",
-						"summary": "GoldenBraid cloning system",
-						"image_map": "",
-						"sequence": "ATGC",
-						"keywords": null,
-						"genbank_accession": "",
-						"in_stock": true,
-						"dbxrefs": null,
-						"depositor": {"first_name": "Gadi", "last_name": "Shaulsky"},
-						"genes": [],
-						"publications": []
-					}
-				}
-			}`))
-		case strings.Contains(req.Query, "listStrainsWithAnnotation"):
-			_, _ = w.Write([]byte(`{
-				"data": {
-					"listStrainsWithAnnotation": {
-						"totalCount": 1,
-						"nextCursor": 1728057313873,
-						"strains": [{
-							"id": "DBS0349965",
-							"label": "bzpN-",
-							"summary": "bzpN null mutant",
-							"in_stock": true,
-							"genes": [{"name": "bzpN"}],
-							"publications": [{
-								"id": "21760904",
-								"pub_date": "2011-07-07T00:00:00.000Z",
-								"title": "BzpN slows proliferation",
-								"journal": "PloS one",
-								"volume": "6",
-								"pages": "e21765",
-								"doi": "10.1/x",
-								"authors": [{"last_name": "Phillips"}]
-							}]
-						}]
-					}
-				}
-			}`))
-		case strings.Contains(req.Query, "geneGeneralInformation") && req.Variables["gene"] == "pkaC":
-			_, _ = w.Write([]byte(`{"data":{"geneGeneralInformation":{"id":"DDB_G0283907","name_description":["pkaC = Protein Kinase A, Catalytic subunit"],"gene_product":"cAMP-dependent protein kinase A, catalytic subunit","synonyms":["PKA","DdPK3"],"description":""}}}`))
-		case strings.Contains(req.Query, "geneGeneralInformation"):
-			_, _ = w.Write([]byte(`{"data":{"geneGeneralInformation":null}}`))
-		case strings.Contains(req.Query, "listStrainsWithGene") && req.Variables["gene"] == "DDB_G0283907":
-			_, _ = w.Write([]byte(`{"data":{"listStrainsWithGene":[{"id":"DBS0236783","label":"pkaC-","summary":"pkaC null","in_stock":true}]}}`))
-		case strings.Contains(req.Query, "listStrainsWithGene"):
-			_, _ = w.Write([]byte(`{"errors":[{"message":"could not find any strains","path":["listStrainsWithGene"],"extensions":{"code":"NotFound"}}],"data":{"listStrainsWithGene":[]}}`))
-		case strings.Contains(req.Query, "publication("):
-			_, _ = w.Write([]byte(`{"data":{"publication":{"id":"17177856","doi":"10.1111/x","title":"A paper","abstract":"Abstract text","journal":"Differentiation","pub_date":"2006-12-01T00:00:00.000Z","volume":"74","pages":"1-10","pub_type":"journal_article","authors":[{"last_name":"Smith","first_name":"A","initials":"A","rank":"1"}]}}}`))
-		}
+		serveGraphQLStub(w, req)
 	}))
+}
+
+func serveGraphQLStub(w http.ResponseWriter, req gqlRequest) {
+	switch {
+	case strings.Contains(req.Query, "listStockSuggestions"),
+		strings.Contains(req.Query, "searchStocks"):
+		serveStockListStub(w, req)
+	case strings.Contains(req.Query, "strain("),
+		strings.Contains(req.Query, "plasmid("),
+		strings.Contains(req.Query, "listStrainsWithAnnotation"):
+		serveStockDetailStub(w, req)
+	case strings.Contains(req.Query, "geneGeneralInformation"),
+		strings.Contains(req.Query, "listStrainsWithGene"):
+		serveGeneStub(w, req)
+	default:
+		servePublicationStub(w)
+	}
+}
+
+func serveStockListStub(w http.ResponseWriter, req gqlRequest) {
+	switch {
+	case strings.Contains(req.Query, "listStockSuggestions"):
+		_, _ = w.Write([]byte(`{
+			"data": {
+				"listStockSuggestions": {
+					"limit": 2,
+					"totalCount": 1,
+					"suggestions": [
+						{
+							"id": "DBS0350026",
+							"entity": "STRAIN",
+							"field": "GENOTYPE",
+							"display_text": "act15:mip1",
+							"score": 1013.5
+						}
+					]
+				}
+			}
+		}`))
+	case strings.Contains(req.Query, "searchStocks"):
+		_, _ = w.Write([]byte(`{
+			"data": {
+				"searchStocks": {
+					"limit": 2,
+					"totalCount": 1,
+					"results": [
+						{
+							"id": "DBS0350840",
+							"entity": "STRAIN",
+							"field": "GENOTYPE",
+							"display_text": "act15:triA",
+							"score": 1011.4,
+							"summary": "triA null cells",
+							"strain_label": "triA-",
+							"in_stock": true
+						}
+					]
+				}
+			}
+		}`))
+	}
+}
+
+func serveStockDetailStub(w http.ResponseWriter, req gqlRequest) {
+	switch {
+	case strings.Contains(req.Query, "strain("):
+		if req.Variables["id"] == "MISSING" {
+			_, _ = w.Write([]byte(`{
+				"errors": [{"message": "strain not found"}]
+			}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{
+			"data": {
+				"strain": {
+					"id": "DBS0350840",
+					"label": "triA-",
+					"summary": "triA null cells",
+					"species": "Dictyostelium discoideum",
+					"systematic_name": "DBS0350840",
+					"plasmid": "",
+					"dbxrefs": null,
+					"in_stock": true,
+					"genotypes": ["axeA2"],
+					"mutagenesis_method": "",
+					"genetic_modification": "exogenous mutation",
+					"names": ["triA-"],
+					"characteristics": ["axenic"],
+					"parent": {"id": "", "label": ""},
+					"depositor": {"first_name": "Dicty", "last_name": "Stock Center"},
+					"genes": [{"name": "triA"}],
+					"publications": [{
+						"id": "17177856",
+						"pub_date": "2006-12-01T00:00:00.000Z",
+						"title": "Trishanku",
+						"journal": "Differentiation",
+						"volume": "74",
+						"pages": "596-607",
+						"doi": "10.1111/test",
+						"authors": [{"last_name": "Jaiswal"}]
+					}],
+					"phenotypes": []
+				}
+			}
+		}`))
+	case strings.Contains(req.Query, "plasmid("):
+		_, _ = w.Write([]byte(`{
+			"data": {
+				"plasmid": {
+					"id": "DBP0391806",
+					"name": "pDGB_O2_0006",
+					"summary": "GoldenBraid cloning system",
+					"image_map": "",
+					"sequence": "ATGC",
+					"keywords": null,
+					"genbank_accession": "",
+					"in_stock": true,
+					"dbxrefs": null,
+					"depositor": {"first_name": "Gadi", "last_name": "Shaulsky"},
+					"genes": [],
+					"publications": []
+				}
+			}
+		}`))
+	case strings.Contains(req.Query, "listStrainsWithAnnotation"):
+		_, _ = w.Write([]byte(`{
+			"data": {
+				"listStrainsWithAnnotation": {
+					"totalCount": 1,
+					"nextCursor": 1728057313873,
+					"strains": [{
+						"id": "DBS0349965",
+						"label": "bzpN-",
+						"summary": "bzpN null mutant",
+						"in_stock": true,
+						"genes": [{"name": "bzpN"}],
+						"publications": [{
+							"id": "21760904",
+							"pub_date": "2011-07-07T00:00:00.000Z",
+							"title": "BzpN slows proliferation",
+							"journal": "PloS one",
+							"volume": "6",
+							"pages": "e21765",
+							"doi": "10.1/x",
+							"authors": [{"last_name": "Phillips"}]
+						}]
+					}]
+				}
+			}
+		}`))
+	}
+}
+
+func serveGeneStub(w http.ResponseWriter, req gqlRequest) {
+	switch {
+	case strings.Contains(req.Query, "geneGeneralInformation") &&
+		req.Variables["gene"] == "pkaC":
+		_, _ = w.Write([]byte(`{
+			"data": {
+				"geneGeneralInformation": {
+					"id": "DDB_G0283907",
+					"name_description": ["pkaC = Protein Kinase A, Catalytic subunit"],
+					"gene_product": "cAMP-dependent protein kinase A, catalytic subunit",
+					"synonyms": ["PKA", "DdPK3"],
+					"description": ""
+				}
+			}
+		}`))
+	case strings.Contains(req.Query, "geneGeneralInformation"):
+		_, _ = w.Write([]byte(`{"data":{"geneGeneralInformation":null}}`))
+	case strings.Contains(req.Query, "listStrainsWithGene") &&
+		req.Variables["gene"] == "DDB_G0283907":
+		_, _ = w.Write([]byte(`{
+			"data": {
+				"listStrainsWithGene": [{
+					"id": "DBS0236783",
+					"label": "pkaC-",
+					"summary": "pkaC null",
+					"in_stock": true
+				}]
+			}
+		}`))
+	case strings.Contains(req.Query, "listStrainsWithGene"):
+		_, _ = w.Write([]byte(`{
+			"errors": [{
+				"message": "could not find any strains",
+				"path": ["listStrainsWithGene"],
+				"extensions": {"code": "NotFound"}
+			}],
+			"data": {"listStrainsWithGene": []}
+		}`))
+	}
+}
+
+func servePublicationStub(w http.ResponseWriter) {
+	_, _ = w.Write([]byte(`{
+		"data": {
+			"publication": {
+				"id": "17177856",
+				"doi": "10.1111/x",
+				"title": "A paper",
+				"abstract": "Abstract text",
+				"journal": "Differentiation",
+				"pub_date": "2006-12-01T00:00:00.000Z",
+				"volume": "74",
+				"pages": "1-10",
+				"pub_type": "journal_article",
+				"authors": [{
+					"last_name": "Smith",
+					"first_name": "A",
+					"initials": "A",
+					"rank": "1"
+				}]
+			}
+		}
+	}`))
 }
 
 func TestClientOperations(t *testing.T) {
@@ -274,14 +354,18 @@ func TestGeneQueries(t *testing.T) {
 	})
 
 	t.Run("ListStrainsWithGene returns strains", func(t *testing.T) {
-		got, err := E.Unwrap(ioeutils.ToEither(client.ListStrainsWithGene(graphql.GeneParams{Ctx: ctx, Gene: "DDB_G0283907"})))
+		got, err := E.Unwrap(ioeutils.ToEither(
+			client.ListStrainsWithGene(graphql.GeneParams{Ctx: ctx, Gene: "DDB_G0283907"}),
+		))
 		require.NoError(t, err)
 		require.Len(t, got, 1)
 		require.Equal(t, "DBS0236783", got[0].ID)
 	})
 
 	t.Run("ListStrainsWithGene maps NotFound to empty list", func(t *testing.T) {
-		got, err := E.Unwrap(ioeutils.ToEither(client.ListStrainsWithGene(graphql.GeneParams{Ctx: ctx, Gene: "DDB_G0000000"})))
+		got, err := E.Unwrap(ioeutils.ToEither(
+			client.ListStrainsWithGene(graphql.GeneParams{Ctx: ctx, Gene: "DDB_G0000000"}),
+		))
 		require.NoError(t, err)
 		require.NotNil(t, got)
 		require.Empty(t, got)

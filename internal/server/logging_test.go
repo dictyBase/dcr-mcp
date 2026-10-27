@@ -19,9 +19,13 @@ func TestToolCallLogger(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
 
-	srv := mcp.NewServer(&mcp.Implementation{Name: "t", Version: "test"}, nil)
+	srv := mcp.NewServer(&mcp.Implementation{Name: "t", Version: testVersion}, nil)
 	srv.AddReceivingMiddleware(server.ToolCallLogger(logger))
-	mcp.AddTool(srv, &mcp.Tool{Name: "echo"}, func(_ context.Context, _ *mcp.CallToolRequest, _ echoInput) (*mcp.CallToolResult, struct{}, error) {
+	mcp.AddTool(srv, &mcp.Tool{Name: "echo"}, func(
+		_ context.Context,
+		_ *mcp.CallToolRequest,
+		_ echoInput,
+	) (*mcp.CallToolResult, struct{}, error) {
 		return nil, struct{}{}, nil
 	})
 

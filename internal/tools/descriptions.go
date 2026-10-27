@@ -68,11 +68,12 @@ const (
 
 	toolCheckAvailability  = "check_availability"
 	titleCheckAvailability = "Check stock availability"
-	descCheckAvailability  = "Check whether up to 25 strains (DBS ids) and/or plasmids (DBP ids) are currently in stock, " +
-		"with a stock page url for each. Use before recommending stocks to order."
+	descCheckAvailability  = "Check whether up to 25 strains (DBS ids) and/or plasmids (DBP ids) are in stock, " +
+		"each with a stock page url. Use before recommending stocks to order."
 
 	toolGetPublication  = "get_publication"
 	titleGetPublication = "Get a publication"
-	descGetPublication  = "Fetch one publication by PubMed id (as listed on strain and plasmid records): title, authors, " +
-		"journal, abstract, and PubMed/DOI links. Use when the user asks what a paper behind a stock reports."
+	descGetPublication  = "Fetch one publication by PubMed id (as listed on strain and plasmid records): title, " +
+		"authors, journal, abstract, and PubMed/DOI links. Use when the user asks what a paper " +
+		"behind a stock reports."
 )

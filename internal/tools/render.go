@@ -182,9 +182,12 @@ func renderStrainMarkdown(v StrainView) string {
 		"Showing %d of %d phenotypes and %d of %d publications (detail=%s).",
 		len(v.Phenotypes), v.PhenotypeCount, len(v.Publications), v.PublicationCount, v.Detail,
 	)))
-	nodes := append(intro, section(phenotypeHeader, A.Map(phenotypeItem)(v.Phenotypes))...)
+	nodes := make([]ast.Node, 0, len(intro)+16)
+	nodes = append(nodes, intro...)
+	nodes = append(nodes, section(phenotypeHeader, A.Map(phenotypeItem)(v.Phenotypes))...)
 	nodes = append(nodes, section(paperHeader, publicationItems(v.Publications))...)
-	return renderNodes(append(nodes, footer))
+	nodes = append(nodes, footer)
+	return renderNodes(nodes)
 }
 
 func renderPlasmidMarkdown(v PlasmidView) string {

@@ -12,10 +12,10 @@ func TestSuggestPhenotypeTerms(t *testing.T) {
 	session := newToolsSession(t)
 	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      "suggest_phenotype_terms",
-		Arguments: map[string]any{"query": "growth rate"},
+		Arguments: map[string]any{testQueryKey: "growth rate"},
 	})
 	require.NoError(t, err)
 	require.False(t, res.IsError)
 	out := res.StructuredContent.(map[string]any)
-	require.Equal(t, []any{"increased growth rate", "decreased growth rate"}, out["terms"])
+	require.Equal(t, []any{testGrowthPheno, "decreased growth rate"}, out["terms"])
 }

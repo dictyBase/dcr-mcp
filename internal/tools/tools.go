@@ -11,33 +11,6 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func toOutcomeSuccess[Out any](output Out) toolCallOutcome[Out] {
-	return toolCallOutcome[Out]{Output: output}
-}
-
-func toOutcomeError[Out any](err error) toolCallOutcome[Out] {
-	return toolCallOutcome[Out]{Err: err}
-}
-
-func textCallResult(text string) *mcp.CallToolResult {
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{&mcp.TextContent{Text: text}},
-	}
-}
-
-// toOutcomeWithMarkdown returns render(output) as text content while the SDK
-// still fills StructuredContent from output.
-func toOutcomeWithMarkdown[Out any](
-	render func(Out) string,
-) func(Out) toolCallOutcome[Out] {
-	return func(output Out) toolCallOutcome[Out] {
-		return toolCallOutcome[Out]{
-			Result: F.Pipe2(output, render, textCallResult),
-			Output: output,
-		}
-	}
-}
-
 var (
 	toAutocompleteState = F.Curry3(
 		func(
@@ -118,6 +91,33 @@ var (
 		},
 	)
 )
+
+func toOutcomeSuccess[Out any](output Out) toolCallOutcome[Out] {
+	return toolCallOutcome[Out]{Output: output}
+}
+
+func toOutcomeError[Out any](err error) toolCallOutcome[Out] {
+	return toolCallOutcome[Out]{Err: err}
+}
+
+func textCallResult(text string) *mcp.CallToolResult {
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{&mcp.TextContent{Text: text}},
+	}
+}
+
+// toOutcomeWithMarkdown returns render(output) as text content while the SDK
+// still fills StructuredContent from output.
+func toOutcomeWithMarkdown[Out any](
+	render func(Out) string,
+) func(Out) toolCallOutcome[Out] {
+	return func(output Out) toolCallOutcome[Out] {
+		return toolCallOutcome[Out]{
+			Result: F.Pipe2(output, render, textCallResult),
+			Output: output,
+		}
+	}
+}
 
 func executeAutocomplete(
 	s autocompleteState,

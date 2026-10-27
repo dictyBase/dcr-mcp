@@ -13,7 +13,7 @@ func TestChatGPTSearch(t *testing.T) {
 	session := newToolsSession(t)
 	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
 		Name:      "search",
-		Arguments: map[string]any{"query": "act"},
+		Arguments: map[string]any{testQueryKey: testActQuery},
 	})
 	require.NoError(t, err)
 	require.False(t, res.IsError)
@@ -29,7 +29,7 @@ func TestChatGPTSearch(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal([]byte(text.Text), &payload))
 	require.Len(t, payload.Results, 1)
-	require.Equal(t, "DBS0350840", payload.Results[0].ID)
+	require.Equal(t, testStrainID, payload.Results[0].ID)
 	require.Equal(t, "triA- (DBS0350840)", payload.Results[0].Title)
 	require.Equal(t, "https://dictycr.org/strains/DBS0350840", payload.Results[0].URL)
 }
@@ -53,9 +53,9 @@ func fetchDoc(t *testing.T, id string) (*mcp.CallToolResult, map[string]any) {
 
 func TestChatGPTFetch(t *testing.T) {
 	t.Run("strain", func(t *testing.T) {
-		res, doc := fetchDoc(t, "DBS0350840")
+		res, doc := fetchDoc(t, testStrainID)
 		require.False(t, res.IsError)
-		require.Equal(t, "DBS0350840", doc["id"])
+		require.Equal(t, testStrainID, doc["id"])
 		require.Equal(t, "triA- (DBS0350840)", doc["title"])
 		require.Equal(t, "https://dictycr.org/strains/DBS0350840", doc["url"])
 		require.Contains(t, doc["text"], "## triA- (DBS0350840)")

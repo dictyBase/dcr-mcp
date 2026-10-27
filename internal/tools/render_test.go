@@ -30,8 +30,8 @@ func parseKinds(t *testing.T, md string) map[ast.NodeKind]int {
 
 func TestRenderStrainMarkdown(t *testing.T) {
 	detail := graphql.StrainDetail{
-		ID: "DBS0350840", Label: "triA-", Summary: "triA null", InStock: true,
-		Species: "Dictyostelium discoideum", Genotypes: []string{"axeA2", "triA-"},
+		ID: testStrainID, Label: testStrainLabel, Summary: "triA null", InStock: true,
+		Species: "Dictyostelium discoideum", Genotypes: []string{"axeA2", testStrainLabel},
 		Phenotypes: []graphql.PhenotypeItem{{
 			Phenotype:   "aberrant spore morphology",
 			Publication: graphql.PhenotypePublicationRef{ID: "123"},
@@ -62,7 +62,7 @@ func TestRenderStrainMarkdown(t *testing.T) {
 }
 
 func TestRenderStrainMarkdownEmptySections(t *testing.T) {
-	md := F.Pipe2(graphql.StrainDetail{ID: "DBS1"}, tools.StrainViewFor("summary"), tools.RenderStrainMarkdown)
+	md := F.Pipe2(graphql.StrainDetail{ID: testShortStrainID}, tools.StrainViewFor("summary"), tools.RenderStrainMarkdown)
 	require.Contains(t, md, "### Phenotypes\nNone recorded.")
 	require.Contains(t, md, "not in stock")
 	require.NotNil(t, parseKinds(t, md))
@@ -71,7 +71,7 @@ func TestRenderStrainMarkdownEmptySections(t *testing.T) {
 func TestRenderSearchMarkdown(t *testing.T) {
 	md := tools.RenderSearchMarkdown(tools.ToSearchResultView(graphql.SearchResult{
 		Results: []graphql.StockSearchHit{{
-			ID: "DBS1", Entity: graphql.StockEntityStrain, Field: "SUMMARY",
+			ID: testShortStrainID, Entity: graphql.StockEntityStrain, Field: "SUMMARY",
 			DisplayText: "a | b", StrainLabel: "x-", InStock: true,
 		}},
 		Limit: 15, TotalCount: 1,
@@ -98,7 +98,7 @@ func TestRenderPlasmidMarkdown(t *testing.T) {
 
 func TestRenderEscapesUserText(t *testing.T) {
 	md := F.Pipe2(
-		graphql.StrainDetail{ID: "DBS1", Label: "a*b_[c]", Summary: "x | y"},
+		graphql.StrainDetail{ID: testShortStrainID, Label: "a*b_[c]", Summary: "x | y"},
 		tools.StrainViewFor("summary"),
 		tools.RenderStrainMarkdown,
 	)

@@ -15,8 +15,8 @@ func TestCLIStartServer(t *testing.T) {
 
 		app := NewApp()
 		err := app.Run(ctx, []string{
-			"dcr-mcp",
-			"start-server",
+			appName,
+			startServerCmd,
 			"--host", "127.0.0.1",
 			"--port", "0",
 			"--graphql-endpoint", "https://graphql.dictybase.dev/graphql",
@@ -27,8 +27,8 @@ func TestCLIStartServer(t *testing.T) {
 	t.Run("start-server rejects empty graphql-endpoint", func(t *testing.T) {
 		app := NewApp()
 		err := app.Run(context.Background(), []string{
-			"dcr-mcp",
-			"start-server",
+			appName,
+			startServerCmd,
 			"--graphql-endpoint", "   ",
 		})
 		require.Error(t, err)
@@ -37,8 +37,8 @@ func TestCLIStartServer(t *testing.T) {
 	t.Run("start-server rejects out-of-range port", func(t *testing.T) {
 		app := NewApp()
 		err := app.Run(context.Background(), []string{
-			"dcr-mcp",
-			"start-server",
+			appName,
+			startServerCmd,
 			"--port", "70000",
 		})
 		require.Error(t, err)
@@ -47,8 +47,8 @@ func TestCLIStartServer(t *testing.T) {
 	t.Run("start-server rejects non-positive rate-limit", func(t *testing.T) {
 		app := NewApp()
 		err := app.Run(context.Background(), []string{
-			"dcr-mcp",
-			"start-server",
+			appName,
+			startServerCmd,
 			"--rate-limit", "0",
 		})
 		require.Error(t, err)

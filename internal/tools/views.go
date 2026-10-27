@@ -14,14 +14,78 @@ import (
 	"github.com/dictybase/dcr-mcp/internal/graphql"
 )
 
-// StrainView is the get_strain output: the GraphQL record plus presentation fields.
-type StrainView struct {
-	graphql.StrainDetail
-	URL              string `json:"url"`
-	Detail           string `json:"detail"`
-	PhenotypeCount   int    `json:"phenotype_count"`
-	PublicationCount int    `json:"publication_count"`
-}
+type (
+	// StrainView is the get_strain output: the GraphQL record plus presentation fields.
+	StrainView struct {
+		graphql.StrainDetail
+		URL              string `json:"url"`
+		Detail           string `json:"detail"`
+		PhenotypeCount   int    `json:"phenotype_count"`
+		PublicationCount int    `json:"publication_count"`
+	}
+
+	// PlasmidView is the get_plasmid output: the GraphQL record plus presentation fields.
+	PlasmidView struct {
+		graphql.PlasmidDetail
+		URL              string `json:"url"`
+		Detail           string `json:"detail"`
+		SequenceLength   int    `json:"sequence_length"`
+		PublicationCount int    `json:"publication_count"`
+	}
+
+	// PlasmidSequence is the get_plasmid_sequence output.
+	PlasmidSequence struct {
+		ID     string `json:"id"`
+		Name   string `json:"name"`
+		Length int    `json:"length"`
+		Format string `json:"format"`
+		FASTA  string `json:"fasta"`
+		URL    string `json:"url"`
+	}
+
+	// SearchHitView is one search_stocks hit plus its stock page url.
+	SearchHitView struct {
+		graphql.StockSearchHit
+		URL string `json:"url"`
+	}
+
+	// SearchResultView is the search_stocks output.
+	SearchResultView struct {
+		Results    []SearchHitView `json:"results"`
+		Limit      int             `json:"limit"`
+		TotalCount int             `json:"total_count"`
+	}
+
+	// PhenotypeStrainView is one list_strains_with_phenotype item plus its stock page url.
+	PhenotypeStrainView struct {
+		graphql.PhenotypeStrainItem
+		URL string `json:"url"`
+	}
+
+	// PhenotypeStrainListView is the list_strains_with_phenotype output.
+	PhenotypeStrainListView struct {
+		Strains    []PhenotypeStrainView `json:"strains"`
+		NextCursor int64                 `json:"next_cursor"`
+		TotalCount int                   `json:"total_count"`
+	}
+)
+
+var (
+	strainViews = map[string]func(graphql.StrainDetail) StrainView{
+		detailSummary: summaryStrainView,
+		detailFull:    fullStrainView,
+	}
+
+	plasmidViews = map[string]func(graphql.PlasmidDetail) PlasmidView{
+		detailSummary: summaryPlasmidView,
+		detailFull:    fullPlasmidView,
+	}
+
+	hasSequence = F.Pipe1(
+		S.IsNonEmpty,
+		P.ContraMap(func(d graphql.PlasmidDetail) string { return d.Sequence }),
+	)
+)
 
 // takeAtMost keeps the first n items and never returns nil, so JSON emits [] not null.
 func takeAtMost[T any](n int) func([]T) []T {
@@ -51,26 +115,12 @@ func summaryStrainView(d graphql.StrainDetail) StrainView {
 	return view
 }
 
-var strainViews = map[string]func(graphql.StrainDetail) StrainView{
-	detailSummary: summaryStrainView,
-	detailFull:    fullStrainView,
-}
-
 func strainViewFor(detail string) func(graphql.StrainDetail) StrainView {
 	return F.Pipe2(
 		strainViews,
 		R.Lookup[func(graphql.StrainDetail) StrainView](detail),
 		O.GetOrElse(F.Constant(summaryStrainView)),
 	)
-}
-
-// PlasmidView is the get_plasmid output: the GraphQL record plus presentation fields.
-type PlasmidView struct {
-	graphql.PlasmidDetail
-	URL              string `json:"url"`
-	Detail           string `json:"detail"`
-	SequenceLength   int    `json:"sequence_length"`
-	PublicationCount int    `json:"publication_count"`
 }
 
 func fullPlasmidView(d graphql.PlasmidDetail) PlasmidView {
@@ -91,11 +141,6 @@ func summaryPlasmidView(d graphql.PlasmidDetail) PlasmidView {
 	return view
 }
 
-var plasmidViews = map[string]func(graphql.PlasmidDetail) PlasmidView{
-	detailSummary: summaryPlasmidView,
-	detailFull:    fullPlasmidView,
-}
-
 func plasmidViewFor(detail string) func(graphql.PlasmidDetail) PlasmidView {
 	return F.Pipe2(
 		plasmidViews,
@@ -103,21 +148,6 @@ func plasmidViewFor(detail string) func(graphql.PlasmidDetail) PlasmidView {
 		O.GetOrElse(F.Constant(summaryPlasmidView)),
 	)
 }
-
-// PlasmidSequence is the get_plasmid_sequence output.
-type PlasmidSequence struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Length int    `json:"length"`
-	Format string `json:"format"`
-	FASTA  string `json:"fasta"`
-	URL    string `json:"url"`
-}
-
-var hasSequence = F.Pipe1(
-	S.IsNonEmpty,
-	P.ContraMap(func(d graphql.PlasmidDetail) string { return d.Sequence }),
-)
 
 func errNoSequence(d graphql.PlasmidDetail) error {
 	return fmt.Errorf("plasmid %s has no sequence on record", d.ID)
@@ -138,32 +168,6 @@ func toPlasmidSequence(d graphql.PlasmidDetail) PlasmidSequence {
 		FASTA:  fmt.Sprintf(">%s %s\n%s", d.ID, d.Name, seq),
 		URL:    PlasmidURL(d.ID),
 	}
-}
-
-// SearchHitView is one search_stocks hit plus its stock page url.
-type SearchHitView struct {
-	graphql.StockSearchHit
-	URL string `json:"url"`
-}
-
-// SearchResultView is the search_stocks output.
-type SearchResultView struct {
-	Results    []SearchHitView `json:"results"`
-	Limit      int             `json:"limit"`
-	TotalCount int             `json:"total_count"`
-}
-
-// PhenotypeStrainView is one list_strains_with_phenotype item plus its stock page url.
-type PhenotypeStrainView struct {
-	graphql.PhenotypeStrainItem
-	URL string `json:"url"`
-}
-
-// PhenotypeStrainListView is the list_strains_with_phenotype output.
-type PhenotypeStrainListView struct {
-	Strains    []PhenotypeStrainView `json:"strains"`
-	NextCursor int64                 `json:"next_cursor"`
-	TotalCount int                   `json:"total_count"`
 }
 
 func toSearchHitView(h graphql.StockSearchHit) SearchHitView {
