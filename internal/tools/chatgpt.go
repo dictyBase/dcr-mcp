@@ -17,19 +17,62 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+type (
+	// SearchDocument is one result in the ChatGPT search contract.
+	SearchDocument struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+		URL   string `json:"url"`
+	}
+
+	// SearchDocuments is the ChatGPT search output.
+	SearchDocuments struct {
+		Results []SearchDocument `json:"results"`
+	}
+
+	// FetchDocument is the ChatGPT fetch output.
+	FetchDocument struct {
+		ID       string            `json:"id"`
+		Title    string            `json:"title"`
+		Text     string            `json:"text"`
+		URL      string            `json:"url"`
+		Metadata map[string]string `json:"metadata"`
+	}
+
+	fetchRoute func(fetchState) IOE.IOEither[error, FetchDocument]
+)
+
 const chatgptSearchLimit = 20
 
-// SearchDocument is one result in the ChatGPT search contract.
-type SearchDocument struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	URL   string `json:"url"`
-}
+var (
+	fetchRoutes = map[string]fetchRoute{
+		strainIDPrefix:  fetchStrainDocument,
+		plasmidIDPrefix: fetchPlasmidDocument,
+	}
 
-// SearchDocuments is the ChatGPT search output.
-type SearchDocuments struct {
-	Results []SearchDocument `json:"results"`
-}
+	fetchStrainDocument = F.Flow3(
+		func(s fetchState) strainState {
+			return strainState{
+				ctx:    s.ctx,
+				client: s.client,
+				input:  GetStrainInput{ID: s.input.ID, Detail: detailFull},
+			}
+		},
+		executeGetStrain,
+		IOE.Map[error](F.Flow2(fullStrainView, strainDocument)),
+	)
+	fetchPlasmidDocument = F.Flow3(
+		func(s fetchState) plasmidState {
+			return plasmidState{
+				ctx:    s.ctx,
+				client: s.client,
+				input:  GetPlasmidInput{ID: s.input.ID, Detail: detailSummary},
+			}
+		},
+		executeGetPlasmid,
+		IOE.Map[error](F.Flow2(summaryPlasmidView, plasmidDocument)),
+	)
+)
 
 func hitID(h graphql.StockSearchHit) string { return h.ID }
 
@@ -85,22 +128,6 @@ func newChatGPTSearchHandler(
 	}
 }
 
-// FetchDocument is the ChatGPT fetch output.
-type FetchDocument struct {
-	ID       string            `json:"id"`
-	Title    string            `json:"title"`
-	Text     string            `json:"text"`
-	URL      string            `json:"url"`
-	Metadata map[string]string `json:"metadata"`
-}
-
-type fetchRoute func(fetchState) IOE.IOEither[error, FetchDocument]
-
-var fetchRoutes = map[string]fetchRoute{
-	strainIDPrefix:  fetchStrainDocument,
-	plasmidIDPrefix: fetchPlasmidDocument,
-}
-
 func strainDocument(v StrainView) FetchDocument {
 	return FetchDocument{
 		ID:    v.ID,
@@ -128,31 +155,6 @@ func plasmidDocument(v PlasmidView) FetchDocument {
 		},
 	}
 }
-
-var (
-	fetchStrainDocument = F.Flow3(
-		func(s fetchState) strainState {
-			return strainState{
-				ctx:    s.ctx,
-				client: s.client,
-				input:  GetStrainInput{ID: s.input.ID, Detail: detailFull},
-			}
-		},
-		executeGetStrain,
-		IOE.Map[error](F.Flow2(fullStrainView, strainDocument)),
-	)
-	fetchPlasmidDocument = F.Flow3(
-		func(s fetchState) plasmidState {
-			return plasmidState{
-				ctx:    s.ctx,
-				client: s.client,
-				input:  GetPlasmidInput{ID: s.input.ID, Detail: detailSummary},
-			}
-		},
-		executeGetPlasmid,
-		IOE.Map[error](F.Flow2(summaryPlasmidView, plasmidDocument)),
-	)
-)
 
 func routeFetch(s fetchState) IOE.IOEither[error, FetchDocument] {
 	return F.Pipe2(

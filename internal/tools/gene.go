@@ -12,22 +12,24 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+type (
+	// GeneStrainView is one strain linked to a gene plus its stock page url.
+	GeneStrainView struct {
+		graphql.GeneStrainItem
+		URL string `json:"url"`
+	}
+
+	// GeneStocks is the find_stocks_by_gene output.
+	GeneStocks struct {
+		Gene             graphql.GeneInfo `json:"gene"`
+		Strains          []GeneStrainView `json:"strains"`
+		Plasmids         []SearchHitView  `json:"plasmids"`
+		PlasmidMatchNote string           `json:"plasmid_match_note"`
+	}
+)
+
 const plasmidMatchNote = "Plasmids are text matches on the gene name, not curated gene links; " +
 	"confirm with get_plasmid (genes field) before recommending one."
-
-// GeneStrainView is one strain linked to a gene plus its stock page url.
-type GeneStrainView struct {
-	graphql.GeneStrainItem
-	URL string `json:"url"`
-}
-
-// GeneStocks is the find_stocks_by_gene output.
-type GeneStocks struct {
-	Gene             graphql.GeneInfo `json:"gene"`
-	Strains          []GeneStrainView `json:"strains"`
-	Plasmids         []SearchHitView  `json:"plasmids"`
-	PlasmidMatchNote string           `json:"plasmid_match_note"`
-}
 
 var toGeneStocksState = F.Curry3(
 	func(

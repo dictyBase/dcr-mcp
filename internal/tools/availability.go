@@ -13,28 +13,30 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// AvailabilityItem is one row of check_availability; Error is set when the lookup failed.
-type AvailabilityItem struct {
-	ID      string `json:"id"`
-	Entity  string `json:"entity,omitempty"`
-	Label   string `json:"label,omitempty"`
-	InStock bool   `json:"in_stock"`
-	URL     string `json:"url,omitempty"`
-	Error   string `json:"error,omitempty"`
-}
+type (
+	// AvailabilityItem is one row of check_availability; Error is set when the lookup failed.
+	AvailabilityItem struct {
+		ID      string `json:"id"`
+		Entity  string `json:"entity,omitempty"`
+		Label   string `json:"label,omitempty"`
+		InStock bool   `json:"in_stock"`
+		URL     string `json:"url,omitempty"`
+		Error   string `json:"error,omitempty"`
+	}
 
-// AvailabilityReport is the check_availability output.
-type AvailabilityReport struct {
-	Items []AvailabilityItem `json:"items"`
-}
+	// AvailabilityReport is the check_availability output.
+	AvailabilityReport struct {
+		Items []AvailabilityItem `json:"items"`
+	}
 
-type stockLookup struct {
-	ctx    context.Context
-	client *graphql.Client
-	id     string
-}
+	stockLookup struct {
+		ctx    context.Context
+		client *graphql.Client
+		id     string
+	}
 
-type availabilityRoute func(stockLookup) IOE.IOEither[error, AvailabilityItem]
+	availabilityRoute func(stockLookup) IOE.IOEither[error, AvailabilityItem]
+)
 
 var (
 	availabilityRoutes = map[string]availabilityRoute{

@@ -15,7 +15,7 @@ func TestCheckAvailability(t *testing.T) {
 	t.Run("mixed ids with one bad prefix", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
 			Name:      "check_availability",
-			Arguments: map[string]any{"ids": []string{"DBS0350840", " DBP0391806 ", "XYZ1", "DBS0350840"}},
+			Arguments: map[string]any{"ids": []string{testStrainID, " DBP0391806 ", "XYZ1", testStrainID}},
 		})
 		require.NoError(t, err)
 		require.False(t, res.IsError)

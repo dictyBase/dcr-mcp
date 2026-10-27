@@ -28,6 +28,17 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// Config holds HTTP and GraphQL configuration for the MCP server.
+type Config struct {
+	GraphQLEndpoint string
+	Host            string
+	Port            int
+	Stateless       bool
+	AllowedOrigins  []string
+	// RateLimit is the max /mcp requests per client IP per minute; 0 uses the default.
+	RateLimit int
+}
+
 const (
 	serverName        = "dcr-mcp"
 	serverVersion     = "1.1.0"
@@ -49,17 +60,6 @@ const (
 		"use get_publication to read a paper cited on a record. " +
 		"Always cite stocks with the url field from results. The catalog cannot be modified through this server."
 )
-
-// Config holds HTTP and GraphQL configuration for the MCP server.
-type Config struct {
-	GraphQLEndpoint string
-	Host            string
-	Port            int
-	Stateless       bool
-	AllowedOrigins  []string
-	// RateLimit is the max /mcp requests per client IP per minute; 0 uses the default.
-	RateLimit int
-}
 
 var isServerClosedErr = func(err error) bool {
 	return errors.Is(err, http.ErrServerClosed)

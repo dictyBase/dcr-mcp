@@ -15,17 +15,19 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+type (
+	// PhenotypeTerms is the suggest_phenotype_terms output.
+	PhenotypeTerms struct {
+		Query string   `json:"query"`
+		Terms []string `json:"terms"`
+		Note  string   `json:"note"`
+	}
+)
+
 const (
 	phenotypeField = "PHENOTYPE"
 	phenoTermsNote = "Pass a term exactly as written to list_strains_with_phenotype."
 )
-
-// PhenotypeTerms is the suggest_phenotype_terms output.
-type PhenotypeTerms struct {
-	Query string   `json:"query"`
-	Terms []string `json:"terms"`
-	Note  string   `json:"note"`
-}
 
 var (
 	isPhenotypeHit = F.Pipe2(

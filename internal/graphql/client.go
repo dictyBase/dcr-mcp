@@ -20,6 +20,14 @@ import (
 	hasuragql "github.com/hasura/go-graphql-client"
 )
 
+// Client wraps a hasura GraphQL client with functional IOEither query methods
+// and a short-lived cache for single-record lookups.
+type Client struct {
+	gql          *hasuragql.Client
+	strainCache  *expirable.LRU[string, StrainDetail]
+	plasmidCache *expirable.LRU[string, PlasmidDetail]
+}
+
 const (
 	varQuery         = "query"
 	varLimit         = "limit"
@@ -35,13 +43,27 @@ const (
 	defaultCacheTTL  = 10 * time.Minute
 )
 
-// Client wraps a hasura GraphQL client with functional IOEither query methods
-// and a short-lived cache for single-record lookups.
-type Client struct {
-	gql          *hasuragql.Client
-	strainCache  *expirable.LRU[string, StrainDetail]
-	plasmidCache *expirable.LRU[string, PlasmidDetail]
-}
+var (
+	hasNotFoundCode = F.Pipe2(
+		notFoundCode,
+		EQ.Equals(predord.StringEq),
+		P.ContraMap(gqlErrorCode),
+	)
+
+	// isNotFound reports whether err carries extensions.code == "NotFound".
+	// dictyBase uses it for "no strains for this gene", an empty result, not a failure.
+	isNotFound = F.Flow2(gqlErrors, A.Any(hasNotFoundCode))
+
+	geneFound = F.Pipe1(
+		S.IsNonEmpty,
+		P.ContraMap(func(g GeneInfo) string { return g.ID }),
+	)
+
+	publicationFound = F.Pipe1(
+		S.IsNonEmpty,
+		P.ContraMap(func(p PublicationDetail) string { return p.ID }),
+	)
+)
 
 func resolveHTTPClient(httpClient *http.Client) *http.Client {
 	return F.Pipe2(
@@ -205,21 +227,11 @@ func gqlErrorCode(e hasuragql.Error) string {
 	return code
 }
 
-var hasNotFoundCode = F.Pipe2(
-	notFoundCode,
-	EQ.Equals(predord.StringEq),
-	P.ContraMap(gqlErrorCode),
-)
-
 func gqlErrors(err error) []hasuragql.Error {
 	var errs hasuragql.Errors
 	_ = errors.As(err, &errs)
 	return errs
 }
-
-// isNotFound reports whether err carries extensions.code == "NotFound".
-// dictyBase uses it for "no strains for this gene", which is an empty result, not a failure.
-var isNotFound = F.Flow2(gqlErrors, A.Any(hasNotFoundCode))
 
 func recoverNotFound[T any](empty func() T) func(error) IOE.IOEither[error, T] {
 	return func(err error) IOE.IOEither[error, T] {
@@ -233,11 +245,6 @@ func recoverNotFound[T any](empty func() T) func(error) IOE.IOEither[error, T] {
 		)
 	}
 }
-
-var geneFound = F.Pipe1(
-	S.IsNonEmpty,
-	P.ContraMap(func(g GeneInfo) string { return g.ID }),
-)
 
 // GetGeneInfo resolves a gene name or DDB_G id via geneGeneralInformation.
 func (c *Client) GetGeneInfo(params GeneParams) IOE.IOEither[error, GeneInfo] {
@@ -271,11 +278,6 @@ func (c *Client) ListStrainsWithGene(params GeneParams) IOE.IOEither[error, []Ge
 		}),
 	)
 }
-
-var publicationFound = F.Pipe1(
-	S.IsNonEmpty,
-	P.ContraMap(func(p PublicationDetail) string { return p.ID }),
-)
 
 // GetPublication fetches one publication by its PubMed id.
 func (c *Client) GetPublication(params IDParams) IOE.IOEither[error, PublicationDetail] {

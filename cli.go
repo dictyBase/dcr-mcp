@@ -17,12 +17,29 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+type (
+	// ServerActionInput is the point-free boundary seed for RunServer.
+	ServerActionInput struct {
+		Context context.Context
+		Command *cli.Command
+	}
+
+	serverState struct {
+		ctx context.Context
+		cmd *cli.Command
+		cfg server.Config
+	}
+)
+
 const (
 	defaultGraphQLEndpoint = "https://graphql.dictybase.dev/graphql"
 	defaultHost            = "0.0.0.0"
 	defaultPort            = 8080
 	maxTCPPort             = 65535
 	defaultRateLimit       = 120
+
+	appName        = "dcr-mcp"
+	startServerCmd = "start-server"
 
 	flagGraphQLEndpoint = "graphql-endpoint"
 	flagHost            = "host"
@@ -31,18 +48,6 @@ const (
 	flagAllowedOrigins  = "allowed-origins"
 	flagRateLimit       = "rate-limit"
 )
-
-// ServerActionInput is the point-free boundary seed for RunServer.
-type ServerActionInput struct {
-	Context context.Context
-	Command *cli.Command
-}
-
-type serverState struct {
-	ctx context.Context
-	cmd *cli.Command
-	cfg server.Config
-}
 
 var (
 	cfgEndpointLens = L.MakeLens(
@@ -206,11 +211,11 @@ func serverFlags() []cli.Flag {
 // NewApp constructs the root urfave/cli/v3 command for dcr-mcp.
 func NewApp() *cli.Command {
 	return &cli.Command{
-		Name:  "dcr-mcp",
+		Name:  appName,
 		Usage: "dictyBase Stock Center Model Context Protocol (MCP) server",
 		Commands: []*cli.Command{
 			{
-				Name:    "start-server",
+				Name:    startServerCmd,
 				Aliases: []string{"serve", "start"},
 				Usage:   "Start the dictyBase Stock Center Streamable HTTP MCP server",
 				Flags:   serverFlags(),

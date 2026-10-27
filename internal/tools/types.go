@@ -9,6 +9,150 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+type (
+	// AutocompleteStocksInput defines the JSON Schema parameters for autocomplete_stocks.
+	AutocompleteStocksInput struct {
+		Query  string `json:"query" jsonschema:"Partial stock search text (at least 3 characters)"`
+		Limit  int    `json:"limit,omitempty" jsonschema:"Maximum number of suggestions to return (default 5, 1-50)"`
+		Entity string `json:"entity,omitempty" jsonschema:"Stock entity filter: ALL, STRAIN, or PLASMID (default ALL)"`
+	}
+
+	// SearchStocksInput defines the JSON Schema parameters for search_stocks.
+	SearchStocksInput struct {
+		Query  string `json:"query" jsonschema:"Full stock search text (at least 2 characters)"`
+		Limit  int    `json:"limit,omitempty" jsonschema:"Maximum number of search results to return (default 15, 1-100)"`
+		Entity string `json:"entity,omitempty" jsonschema:"Stock entity filter: ALL, STRAIN, or PLASMID (default ALL)"`
+	}
+
+	// GetStrainInput defines the JSON Schema parameters for get_strain.
+	// The summary detail caps the response at 10 phenotypes and 5 publications.
+	GetStrainInput struct {
+		ID     string `json:"id" jsonschema:"dictyBase strain ID (for example DBS0350840)"`
+		Detail string `json:"detail,omitempty" jsonschema:"Response size: summary (default) or full"`
+	}
+
+	// GetPlasmidInput defines the JSON Schema parameters for get_plasmid.
+	// The summary detail omits the DNA sequence and caps publications at 5.
+	GetPlasmidInput struct {
+		ID     string `json:"id" jsonschema:"dictyBase plasmid ID (for example DBP0391806)"`
+		Detail string `json:"detail,omitempty" jsonschema:"Response size: summary (default) or full"`
+	}
+
+	// GetPlasmidSequenceInput defines the JSON Schema parameters for get_plasmid_sequence.
+	GetPlasmidSequenceInput struct {
+		ID string `json:"id" jsonschema:"dictyBase plasmid ID (for example DBP0391806)"`
+	}
+
+	// ListStrainsWithPhenotypeInput defines the parameters for list_strains_with_phenotype.
+	ListStrainsWithPhenotypeInput struct {
+		Phenotype string `json:"phenotype" jsonschema:"Phenotype annotation name (for example increased growth rate)"`
+		Cursor    int    `json:"cursor,omitempty" jsonschema:"Pagination cursor (default 0)"`
+		Limit     int    `json:"limit,omitempty" jsonschema:"Maximum number of strains to return (default 10, 1-100)"`
+	}
+
+	// ChatGPTSearchInput defines the JSON Schema parameters for the ChatGPT-compatible search tool.
+	ChatGPTSearchInput struct {
+		Query string `json:"query" jsonschema:"Search text, for example a gene name, strain label, or phenotype"`
+	}
+
+	// FetchInput defines the JSON Schema parameters for the ChatGPT-compatible fetch tool.
+	FetchInput struct {
+		ID string `json:"id" jsonschema:"Stock id returned by search: DBS... (strain) or DBP... (plasmid)"`
+	}
+
+	// FindStocksByGeneInput defines the JSON Schema parameters for find_stocks_by_gene.
+	FindStocksByGeneInput struct {
+		Gene string `json:"gene" jsonschema:"Gene name (for example pkaC) or dictyBase gene id (for example DDB_G0283907)"`
+	}
+
+	// SuggestPhenotypeTermsInput defines the JSON Schema parameters for suggest_phenotype_terms.
+	SuggestPhenotypeTermsInput struct {
+		Query string `json:"query" jsonschema:"Phenotype keywords (at least 3 characters), for example growth rate"`
+		Limit int    `json:"limit,omitempty" jsonschema:"Maximum number of terms (default 10, 1-25)"`
+	}
+
+	// CheckAvailabilityInput defines the JSON Schema parameters for check_availability.
+	CheckAvailabilityInput struct {
+		IDs []string `json:"ids" jsonschema:"1 to 25 strain (DBS...) and/or plasmid (DBP...) ids"`
+	}
+
+	// GetPublicationInput defines the JSON Schema parameters for get_publication.
+	GetPublicationInput struct {
+		ID string `json:"id" jsonschema:"PubMed id of a publication listed on a strain or plasmid (for example 17177856)"`
+	}
+
+	// toolCallOutcome holds the 3-tuple returned to mcp.ToolHandlerFor.
+	toolCallOutcome[Out any] struct {
+		Result *mcp.CallToolResult
+		Output Out
+		Err    error
+	}
+
+	autocompleteState struct {
+		ctx    context.Context
+		client *graphql.Client
+		input  AutocompleteStocksInput
+	}
+
+	searchState struct {
+		ctx    context.Context
+		client *graphql.Client
+		input  SearchStocksInput
+	}
+
+	strainState struct {
+		ctx    context.Context
+		client *graphql.Client
+		input  GetStrainInput
+	}
+
+	plasmidState struct {
+		ctx    context.Context
+		client *graphql.Client
+		input  GetPlasmidInput
+	}
+
+	phenotypeListState struct {
+		ctx    context.Context
+		client *graphql.Client
+		input  ListStrainsWithPhenotypeInput
+	}
+
+	fetchState struct {
+		ctx    context.Context
+		client *graphql.Client
+		input  FetchInput
+	}
+
+	geneStocksState struct {
+		ctx      context.Context
+		client   *graphql.Client
+		input    FindStocksByGeneInput
+		gene     graphql.GeneInfo
+		strains  []graphql.GeneStrainItem
+		plasmids graphql.SearchResult
+	}
+
+	phenoTermsState struct {
+		ctx    context.Context
+		client *graphql.Client
+		input  SuggestPhenotypeTermsInput
+		result graphql.SearchResult
+	}
+
+	availabilityState struct {
+		ctx    context.Context
+		client *graphql.Client
+		input  CheckAvailabilityInput
+	}
+
+	publicationState struct {
+		ctx    context.Context
+		client *graphql.Client
+		input  GetPublicationInput
+	}
+)
+
 const (
 	defaultAutocompleteLimit = 5
 	maxAutocompleteLimit     = 50
@@ -36,146 +180,6 @@ const (
 
 	maxAvailabilityIDs = 25
 )
-
-// AutocompleteStocksInput defines the JSON Schema parameters for autocomplete_stocks.
-type AutocompleteStocksInput struct {
-	Query  string `json:"query" jsonschema:"Partial stock search text (at least 3 characters)"`
-	Limit  int    `json:"limit,omitempty" jsonschema:"Maximum number of suggestions to return (default 5, 1-50)"`
-	Entity string `json:"entity,omitempty" jsonschema:"Stock entity filter: ALL, STRAIN, or PLASMID (default ALL)"`
-}
-
-// SearchStocksInput defines the JSON Schema parameters for search_stocks.
-type SearchStocksInput struct {
-	Query  string `json:"query" jsonschema:"Full stock search text (at least 2 characters)"`
-	Limit  int    `json:"limit,omitempty" jsonschema:"Maximum number of search results to return (default 15, 1-100)"`
-	Entity string `json:"entity,omitempty" jsonschema:"Stock entity filter: ALL, STRAIN, or PLASMID (default ALL)"`
-}
-
-// GetStrainInput defines the JSON Schema parameters for get_strain.
-type GetStrainInput struct {
-	ID     string `json:"id" jsonschema:"dictyBase strain ID (for example DBS0350840)"`
-	Detail string `json:"detail,omitempty" jsonschema:"Response size: summary (default; at most 10 phenotypes and 5 publications) or full"`
-}
-
-// GetPlasmidInput defines the JSON Schema parameters for get_plasmid.
-type GetPlasmidInput struct {
-	ID     string `json:"id" jsonschema:"dictyBase plasmid ID (for example DBP0391806)"`
-	Detail string `json:"detail,omitempty" jsonschema:"Response size: summary (default; omits the DNA sequence, at most 5 publications) or full"`
-}
-
-// GetPlasmidSequenceInput defines the JSON Schema parameters for get_plasmid_sequence.
-type GetPlasmidSequenceInput struct {
-	ID string `json:"id" jsonschema:"dictyBase plasmid ID (for example DBP0391806)"`
-}
-
-// ListStrainsWithPhenotypeInput defines the JSON Schema parameters for list_strains_with_phenotype.
-type ListStrainsWithPhenotypeInput struct {
-	Phenotype string `json:"phenotype" jsonschema:"Phenotype annotation name (for example increased growth rate)"`
-	Cursor    int    `json:"cursor,omitempty" jsonschema:"Pagination cursor (default 0)"`
-	Limit     int    `json:"limit,omitempty" jsonschema:"Maximum number of strains to return (default 10, 1-100)"`
-}
-
-// ChatGPTSearchInput defines the JSON Schema parameters for the ChatGPT-compatible search tool.
-type ChatGPTSearchInput struct {
-	Query string `json:"query" jsonschema:"Search text, for example a gene name, strain label, or phenotype"`
-}
-
-// FetchInput defines the JSON Schema parameters for the ChatGPT-compatible fetch tool.
-type FetchInput struct {
-	ID string `json:"id" jsonschema:"Stock id returned by search: DBS... (strain) or DBP... (plasmid)"`
-}
-
-// FindStocksByGeneInput defines the JSON Schema parameters for find_stocks_by_gene.
-type FindStocksByGeneInput struct {
-	Gene string `json:"gene" jsonschema:"Gene name (for example pkaC) or dictyBase gene id (for example DDB_G0283907)"`
-}
-
-// SuggestPhenotypeTermsInput defines the JSON Schema parameters for suggest_phenotype_terms.
-type SuggestPhenotypeTermsInput struct {
-	Query string `json:"query" jsonschema:"Words describing the phenotype (at least 3 characters), for example growth rate"`
-	Limit int    `json:"limit,omitempty" jsonschema:"Maximum number of terms (default 10, 1-25)"`
-}
-
-// CheckAvailabilityInput defines the JSON Schema parameters for check_availability.
-type CheckAvailabilityInput struct {
-	IDs []string `json:"ids" jsonschema:"1 to 25 strain (DBS...) and/or plasmid (DBP...) ids"`
-}
-
-// GetPublicationInput defines the JSON Schema parameters for get_publication.
-type GetPublicationInput struct {
-	ID string `json:"id" jsonschema:"PubMed id of a publication listed on a strain or plasmid (for example 17177856)"`
-}
-
-// toolCallOutcome holds the 3-tuple returned to mcp.ToolHandlerFor.
-type toolCallOutcome[Out any] struct {
-	Result *mcp.CallToolResult
-	Output Out
-	Err    error
-}
-
-type autocompleteState struct {
-	ctx    context.Context
-	client *graphql.Client
-	input  AutocompleteStocksInput
-}
-
-type searchState struct {
-	ctx    context.Context
-	client *graphql.Client
-	input  SearchStocksInput
-}
-
-type strainState struct {
-	ctx    context.Context
-	client *graphql.Client
-	input  GetStrainInput
-}
-
-type plasmidState struct {
-	ctx    context.Context
-	client *graphql.Client
-	input  GetPlasmidInput
-}
-
-type phenotypeListState struct {
-	ctx    context.Context
-	client *graphql.Client
-	input  ListStrainsWithPhenotypeInput
-}
-
-type fetchState struct {
-	ctx    context.Context
-	client *graphql.Client
-	input  FetchInput
-}
-
-type geneStocksState struct {
-	ctx      context.Context
-	client   *graphql.Client
-	input    FindStocksByGeneInput
-	gene     graphql.GeneInfo
-	strains  []graphql.GeneStrainItem
-	plasmids graphql.SearchResult
-}
-
-type phenoTermsState struct {
-	ctx    context.Context
-	client *graphql.Client
-	input  SuggestPhenotypeTermsInput
-	result graphql.SearchResult
-}
-
-type availabilityState struct {
-	ctx    context.Context
-	client *graphql.Client
-	input  CheckAvailabilityInput
-}
-
-type publicationState struct {
-	ctx    context.Context
-	client *graphql.Client
-	input  GetPublicationInput
-}
 
 var (
 	autoQueryLens = L.MakeLens(

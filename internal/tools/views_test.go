@@ -11,8 +11,8 @@ import (
 
 func strainFixture() graphql.StrainDetail {
 	return graphql.StrainDetail{
-		ID:           "DBS0350840",
-		Label:        "triA-",
+		ID:           testStrainID,
+		Label:        testStrainLabel,
 		Phenotypes:   make([]graphql.PhenotypeItem, 12),
 		Publications: make([]graphql.PublicationRef, 7),
 	}
@@ -37,7 +37,7 @@ func TestStrainViewFor(t *testing.T) {
 	})
 
 	t.Run("empty slices stay non-nil", func(t *testing.T) {
-		view := F.Pipe1(graphql.StrainDetail{ID: "DBS1"}, tools.StrainViewFor("summary"))
+		view := F.Pipe1(graphql.StrainDetail{ID: testShortStrainID}, tools.StrainViewFor("summary"))
 		require.NotNil(t, view.Phenotypes)
 		require.NotNil(t, view.Publications)
 	})
@@ -45,7 +45,7 @@ func TestStrainViewFor(t *testing.T) {
 
 func TestPlasmidViewFor(t *testing.T) {
 	fixture := graphql.PlasmidDetail{
-		ID:           "DBP0391806",
+		ID:           testPlasmidID,
 		Sequence:     "ATGCATGCAT",
 		Publications: make([]graphql.PublicationRef, 6),
 	}
@@ -69,7 +69,7 @@ func TestPlasmidViewFor(t *testing.T) {
 func TestSearchAndPhenotypeViews(t *testing.T) {
 	search := tools.ToSearchResultView(graphql.SearchResult{
 		Results: []graphql.StockSearchHit{
-			{ID: "DBS1", Entity: graphql.StockEntityStrain},
+			{ID: testShortStrainID, Entity: graphql.StockEntityStrain},
 			{ID: "DBP1", Entity: graphql.StockEntityPlasmid},
 		},
 		Limit: 15, TotalCount: 2,
