@@ -449,3 +449,7 @@ The `serve` and `start` subcommands are aliases for `start-server`. Check `/heal
 | `plasmid ... has no sequence on record` | The catalog entry for that plasmid does not include a DNA sequence. Check `sequence_length` on `get_plasmid` or inspect the GenBank accession if present. |
 | A phenotype list is empty | `list_strains_with_phenotype` requires an exact annotation term. Call `suggest_phenotype_terms` first to discover exact terms. |
 | HTTP `429 Too Many Requests` | The client exceeded `--rate-limit` requests per minute on `/mcp`. Wait for the 1-minute window to reset or raise `MCP_RATE_LIMIT`. |
+
+## CI
+
+Workflows: test on push to develop, lint and coverage on pull requests, dependabot, and Kodiak automerge for dependabot upgrades.
