@@ -4,6 +4,8 @@ github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9
 github.com/coder/websocket v1.8.14/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/dictyBase/fp-go-loom v0.1.0 h1:XkUK25PFogAR2nUnhmIvFg25GU+8P0i+XcQ1E3zlQBU=
 github.com/dictyBase/fp-go-loom v0.1.0/go.mod h1:EVYNZiwKU9jZfNKK6ZwsD7LjlfdH7vHWQ+2DcW2Tbns=
+github.com/dictyBase/fp-go-loom v0.2.0 h1:z4hYGiDtO1mZ6Wym5TubeeBYQ3Ne5idhw2LWoPvJSWk=
+github.com/dictyBase/fp-go-loom v0.2.0/go.mod h1:4qGJYnGGFjg2hiG7ZyjcHK8qu4CZOloICFSNnb5W5sg=
 github.com/go-chi/chi/v5 v5.5.0 h1:xdKQ1dJmVJsmgahrXSKhUx8NyVPzpwdlyrrQFpMPJgg=
 github.com/go-chi/chi/v5 v5.5.0/go.mod h1:d1IG7GtKPSjPyBP365PH8sAGVHk3qfB/IhjFNRH1wWM=
 github.com/go-chi/cors v1.2.2 h1:Jmey33TE+b+rB7fT8MUy1u0I4L+NARQlK6LhzKPSyQE=
