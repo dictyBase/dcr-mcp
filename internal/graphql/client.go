@@ -54,6 +54,29 @@ var (
 	// dictyBase uses it for "no strains for this gene", an empty result, not a failure.
 	isNotFound = F.Flow2(gqlErrors, A.Any(hasNotFoundCode))
 
+	// hasCode matches one GraphQL error whose extensions.code equals code.
+	hasCode = func(code string) P.Predicate[hasuragql.Error] {
+		return F.Pipe2(code, EQ.Equals(predord.StringEq), P.ContraMap(gqlErrorCode))
+	}
+
+	// isClientErrorEntry reports whether one GraphQL error was minted by the
+	// GraphQL client itself (request, encode, or decode failure) instead of the
+	// upstream resolver.
+	isClientErrorEntry = F.Pipe5(
+		hasCode(hasuragql.ErrRequestError),
+		P.Or(hasCode(hasuragql.ErrJsonEncode)),
+		P.Or(hasCode(hasuragql.ErrJsonDecode)),
+		P.Or(hasCode(hasuragql.ErrGraphQLEncode)),
+		P.Or(hasCode(hasuragql.ErrGraphQLDecode)),
+		P.Or(hasCode(hasuragql.ErrGraphQLExtensionsDecode)),
+	)
+
+	// hasDataError reports whether err carries an upstream GraphQL data error,
+	// the class one bad PMID produces. Only that class degrades to an empty
+	// publication list; client-side transport and decode errors propagate, never
+	// degrade silently.
+	hasDataError = F.Flow2(gqlErrors, A.Any(P.Not(isClientErrorEntry)))
+
 	geneFound = F.Pipe1(
 		S.IsNonEmpty,
 		P.ContraMap(func(g GeneInfo) string { return g.ID }),
@@ -199,9 +222,9 @@ func (c *Client) GetPlasmid(params IDParams) IOE.IOEither[error, PlasmidDetail] 
 
 // ListStrainsWithPhenotype executes listStrainsWithAnnotation with type "phenotype".
 // The list query carries no publications field: one legacy non-numeric PMID
-// would fail the whole list. The pipeline fetches publications per strain
-// afterwards, and a failed fetch degrades to an empty publication list for
-// that strain.
+// would fail the whole list. The pipeline fetches publications per strain in
+// parallel and degrades only upstream GraphQL data errors (the bad-PMID class)
+// to an empty publication list; transport and decode errors propagate.
 func (c *Client) ListStrainsWithPhenotype(
 	params PhenotypeListParams,
 ) IOE.IOEither[error, PhenotypeStrainList] {
@@ -226,9 +249,9 @@ func (c *Client) ListStrainsWithPhenotype(
 		IOE.Chain(func(list PhenotypeStrainList) IOE.IOEither[error, PhenotypeStrainList] {
 			return F.Pipe2(
 				list.Strains,
-				IOE.TraverseArraySeq(
+				IOE.TraverseArrayPar(
 					func(item PhenotypeStrainItem) IOE.IOEither[error, []PhenotypePublicationRef] {
-						return F.Pipe2(
+						return F.Pipe3(
 							IOE.TryCatchError(func() (*StrainPublicationQuery, error) {
 								query := new(StrainPublicationQuery)
 								return query, c.gql.Query(params.Ctx, query, map[string]any{
@@ -236,11 +259,25 @@ func (c *Client) ListStrainsWithPhenotype(
 								})
 							}),
 							IOE.Map[error](toStrainPublications),
-							IOE.OrElse(func(error) IOE.IOEither[error, []PhenotypePublicationRef] {
-								return F.Pipe1(
-									emptySlice[PhenotypePublicationRef](),
-									IOE.Of[error, []PhenotypePublicationRef],
+							IOE.OrElse(func(err error) IOE.IOEither[error, []PhenotypePublicationRef] {
+								return F.Pipe2(
+									err,
+									O.FromPredicate(hasDataError),
+									O.Fold(
+										func() IOE.IOEither[error, []PhenotypePublicationRef] {
+											return IOE.Left[[]PhenotypePublicationRef](err)
+										},
+										func(error) IOE.IOEither[error, []PhenotypePublicationRef] {
+											return F.Pipe1(
+												emptySlice[PhenotypePublicationRef](),
+												IOE.Of[error, []PhenotypePublicationRef],
+											)
+										},
+									),
 								)
+							}),
+							IOE.MapLeft[[]PhenotypePublicationRef](func(err error) error {
+								return fmt.Errorf("publication query for strain %q failed: %w", item.ID, err)
 							}),
 						)
 					},
