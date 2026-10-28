@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	E "github.com/IBM/fp-go/v2/either"
 	ioeutils "github.com/dictyBase/fp-go-loom/ioeitherutils"
@@ -344,6 +345,10 @@ func TestClientOperations(t *testing.T) {
 		require.Equal(t, "DBS0349965", res.Strains[0].ID)
 		require.Equal(t, "10.1/x", res.Strains[0].Publications[0].DOI)
 	})
+}
+
+func TestListStrainsWithPhenotypePublications(t *testing.T) {
+	ctx := context.Background()
 
 	t.Run("ListStrainsWithPhenotype omits publications from the list query", func(t *testing.T) {
 		var listQuery atomic.Value
@@ -444,6 +449,96 @@ func TestClientOperations(t *testing.T) {
 		require.NotNil(t, res.Strains[1].Publications)
 		require.Empty(t, res.Strains[1].Publications)
 		require.EqualValues(t, 2, pubQueries.Load(), "publications are fetched per strain")
+	})
+}
+
+func TestListStrainsWithPhenotypeFailureModes(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("ListStrainsWithPhenotype propagates transport failures during publication fetch", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var req gqlRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			w.Header().Set("Content-Type", "application/json")
+			if strings.Contains(req.Query, "listStrainsWithAnnotation") {
+				_, _ = w.Write([]byte(`{
+					"data": {
+						"listStrainsWithAnnotation": {
+							"totalCount": 1,
+							"nextCursor": 0,
+							"strains": [{"id": "DBS0349965", "label": "bzpN-", "genes": []}]
+						}
+					}
+				}`))
+				return
+			}
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("upstream exploded"))
+		}))
+		defer srv.Close()
+
+		failClient := graphql.NewClient(srv.URL, srv.Client())
+		_, err := E.Unwrap(ioeutils.ToEither(failClient.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
+			Ctx:       ctx,
+			Phenotype: testPhenotype,
+			Limit:     2,
+		})))
+		require.Error(t, err, "a transport failure must not masquerade as empty publications")
+		require.ErrorContains(t, err, "publication query for strain")
+	})
+
+	t.Run("ListStrainsWithPhenotype fetches strain publications concurrently", func(t *testing.T) {
+		const strainCount = 8
+		var inflight atomic.Int32
+		var maxInflight atomic.Int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var req gqlRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			w.Header().Set("Content-Type", "application/json")
+			if strings.Contains(req.Query, "listStrainsWithAnnotation") {
+				_, _ = w.Write([]byte(`{
+					"data": {
+						"listStrainsWithAnnotation": {
+							"totalCount": 8,
+							"nextCursor": 0,
+							"strains": [
+								{"id": "DBS0000001", "label": "s1-", "genes": []},
+								{"id": "DBS0000002", "label": "s2-", "genes": []},
+								{"id": "DBS0000003", "label": "s3-", "genes": []},
+								{"id": "DBS0000004", "label": "s4-", "genes": []},
+								{"id": "DBS0000005", "label": "s5-", "genes": []},
+								{"id": "DBS0000006", "label": "s6-", "genes": []},
+								{"id": "DBS0000007", "label": "s7-", "genes": []},
+								{"id": "DBS0000008", "label": "s8-", "genes": []}
+							]
+						}
+					}
+				}`))
+				return
+			}
+			cur := inflight.Add(1)
+			for {
+				old := maxInflight.Load()
+				if cur <= old || maxInflight.CompareAndSwap(old, cur) {
+					break
+				}
+			}
+			time.Sleep(50 * time.Millisecond)
+			inflight.Add(-1)
+			_, _ = w.Write([]byte(`{"data":{"strain":{"publications":[]}}}`))
+		}))
+		defer srv.Close()
+
+		parClient := graphql.NewClient(srv.URL, srv.Client())
+		res, err := E.Unwrap(ioeutils.ToEither(parClient.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
+			Ctx:       ctx,
+			Phenotype: testPhenotype,
+			Limit:     strainCount,
+		})))
+		require.NoError(t, err)
+		require.Len(t, res.Strains, strainCount)
+		require.Greater(t, maxInflight.Load(), int32(1),
+			"per-strain publication fetches must overlap")
 	})
 }
 
