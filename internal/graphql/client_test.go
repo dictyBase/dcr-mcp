@@ -20,6 +20,8 @@ type gqlRequest struct {
 	Variables map[string]any `json:"variables"`
 }
 
+const testPhenotype = "increased growth rate"
+
 func newStubGraphQLServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +99,25 @@ func serveStockDetailStub(w http.ResponseWriter, req gqlRequest) {
 		if req.Variables["id"] == "MISSING" {
 			_, _ = w.Write([]byte(`{
 				"errors": [{"message": "strain not found"}]
+			}`))
+			return
+		}
+		if !strings.Contains(req.Query, "label") {
+			_, _ = w.Write([]byte(`{
+				"data": {
+					"strain": {
+						"publications": [{
+							"id": "21760904",
+							"pub_date": "2011-07-07T00:00:00.000Z",
+							"title": "BzpN slows proliferation",
+							"journal": "PloS one",
+							"volume": "6",
+							"pages": "e21765",
+							"doi": "10.1/x",
+							"authors": [{"last_name": "Phillips"}]
+						}]
+					}
+				}
 			}`))
 			return
 		}
@@ -312,7 +333,7 @@ func TestClientOperations(t *testing.T) {
 	t.Run("ListStrainsWithPhenotype returns strains and nextCursor", func(t *testing.T) {
 		res, err := E.Unwrap(ioeutils.ToEither(client.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
 			Ctx:       ctx,
-			Phenotype: "increased growth rate",
+			Phenotype: testPhenotype,
 			Cursor:    0,
 			Limit:     2,
 		})))
@@ -321,6 +342,7 @@ func TestClientOperations(t *testing.T) {
 		require.Equal(t, int64(1728057313873), res.NextCursor)
 		require.Len(t, res.Strains, 1)
 		require.Equal(t, "DBS0349965", res.Strains[0].ID)
+		require.Equal(t, "10.1/x", res.Strains[0].Publications[0].DOI)
 	})
 
 	t.Run("ListStrainsWithPhenotype omits publications from the list query", func(t *testing.T) {
@@ -350,13 +372,78 @@ func TestClientOperations(t *testing.T) {
 		shapeClient := graphql.NewClient(srv.URL, srv.Client())
 		_, err := E.Unwrap(ioeutils.ToEither(shapeClient.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
 			Ctx:       ctx,
-			Phenotype: "increased growth rate",
+			Phenotype: testPhenotype,
 			Limit:     2,
 		})))
 		require.NoError(t, err)
 		query, _ := listQuery.Load().(string)
 		require.NotContains(t, query, "publications",
 			"one bad PMID must not fail the whole list query")
+	})
+
+	t.Run("ListStrainsWithPhenotype merges per-strain publications and survives bad PMIDs", func(t *testing.T) {
+		var pubQueries atomic.Int32
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var req gqlRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case strings.Contains(req.Query, "listStrainsWithAnnotation"):
+				_, _ = w.Write([]byte(`{
+					"data": {
+						"listStrainsWithAnnotation": {
+							"totalCount": 2,
+							"nextCursor": 0,
+							"strains": [
+								{"id": "DBS0349965", "label": "bzpN-", "genes": []},
+								{"id": "DBS0BADPUB", "label": "badPmid-", "genes": []}
+							]
+						}
+					}
+				}`))
+			case strings.Contains(req.Query, "strain("):
+				pubQueries.Add(1)
+				require.Contains(t, req.Query, "publications")
+				require.NotContains(t, req.Query, "label",
+					"the fallback query must request only publications")
+				if req.Variables["id"] == "DBS0349965" {
+					_, _ = w.Write([]byte(`{
+						"data": {
+							"strain": {
+								"publications": [{
+									"id": "21760904",
+									"pub_date": "2011-07-07T00:00:00.000Z",
+									"title": "BzpN slows proliferation",
+									"journal": "PloS one",
+									"volume": "6",
+									"pages": "e21765",
+									"doi": "10.1/x",
+									"authors": [{"last_name": "Phillips"}]
+								}]
+							}
+						}
+					}`))
+					return
+				}
+				_, _ = w.Write([]byte(`{
+					"errors": [{"message": "pmid must contain decimal digits"}]
+				}`))
+			}
+		}))
+		defer srv.Close()
+
+		mergeClient := graphql.NewClient(srv.URL, srv.Client())
+		res, err := E.Unwrap(ioeutils.ToEither(mergeClient.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
+			Ctx:       ctx,
+			Phenotype: testPhenotype,
+			Limit:     2,
+		})))
+		require.NoError(t, err, "one bad PMID must not fail the whole list")
+		require.Len(t, res.Strains, 2)
+		require.Equal(t, "10.1/x", res.Strains[0].Publications[0].DOI)
+		require.NotNil(t, res.Strains[1].Publications)
+		require.Empty(t, res.Strains[1].Publications)
+		require.EqualValues(t, 2, pubQueries.Load(), "publications are fetched per strain")
 	})
 }
 
