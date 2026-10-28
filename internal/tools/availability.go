@@ -115,16 +115,6 @@ func toAvailabilityReport(items []AvailabilityItem) AvailabilityReport {
 	return AvailabilityReport{Items: items}
 }
 
-func checkAvailability(s availabilityState) IOE.IOEither[error, AvailabilityReport] {
-	return F.Pipe2(
-		s.input.IDs,
-		IOE.TraverseArrayPar(func(id string) IOE.IOEither[error, AvailabilityItem] {
-			return lookupAvailability(stockLookup{ctx: s.ctx, client: s.client, id: id})
-		}),
-		IOE.Map[error](toAvailabilityReport),
-	)
-}
-
 func newCheckAvailabilityHandler(
 	client *graphql.Client,
 ) mcp.ToolHandlerFor[CheckAvailabilityInput, AvailabilityReport] {
@@ -138,7 +128,15 @@ func newCheckAvailabilityHandler(
 			IOE.Of[error](input),
 			IOE.ChainEitherK(ValidateCheckAvailabilityInput),
 			IOE.Map[error](buildState),
-			IOE.Chain(checkAvailability),
+			IOE.Chain(func(s availabilityState) IOE.IOEither[error, AvailabilityReport] {
+				return F.Pipe2(
+					s.input.IDs,
+					IOE.TraverseArrayPar(func(id string) IOE.IOEither[error, AvailabilityItem] {
+						return lookupAvailability(stockLookup{ctx: s.ctx, client: s.client, id: id})
+					}),
+					IOE.Map[error](toAvailabilityReport),
+				)
+			}),
 			ioeutils.ToEither[error, AvailabilityReport],
 			E.Fold(
 				toOutcomeError[AvailabilityReport],

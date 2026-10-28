@@ -79,6 +79,10 @@ var (
 		},
 	)
 
+	stateEndpointLens = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgEndpointLens))
+	statePortLens     = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgPortLens))
+	stateRateLens     = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgRateLimitLens))
+
 	isPositiveInt = F.Pipe1(1, ORD.Geq(predord.IntOrd))
 
 	errEmptyEndpoint = eithererr.ConstErr[string](
@@ -89,6 +93,22 @@ var (
 	)
 	errInvalidRateLimit = eithererr.ConstErr[int](
 		"rate-limit must be at least 1",
+	)
+
+	validateEndpoint = F.Flow2(
+		strings.TrimSpace,
+		E.FromPredicate(S.IsNonEmpty, errEmptyEndpoint),
+	)
+	validatePort = E.FromPredicate(
+		predord.IntBetweenInclusive(0, maxTCPPort),
+		errInvalidPort,
+	)
+	validateRateLimit   = E.FromPredicate(isPositiveInt, errInvalidRateLimit)
+	validateServerState = F.Flow4(
+		E.Of[error, serverState],
+		E.BindL(stateEndpointLens, validateEndpoint),
+		E.BindL(statePortLens, validatePort),
+		E.BindL(stateRateLens, validateRateLimit),
 	)
 )
 
@@ -105,50 +125,6 @@ func seedServerState(in ServerActionInput) serverState {
 			RateLimit:       in.Command.Int(flagRateLimit),
 		},
 	}
-}
-
-func validateEndpoint(cfg server.Config) E.Either[error, string] {
-	return F.Pipe2(
-		cfg.GraphQLEndpoint,
-		strings.TrimSpace,
-		E.FromPredicate(S.IsNonEmpty, errEmptyEndpoint),
-	)
-}
-
-func validatePort(cfg server.Config) E.Either[error, int] {
-	return F.Pipe1(
-		cfg.Port,
-		E.FromPredicate(
-			predord.IntBetweenInclusive(0, maxTCPPort),
-			errInvalidPort,
-		),
-	)
-}
-
-func validateRateLimit(cfg server.Config) E.Either[error, int] {
-	return F.Pipe1(
-		cfg.RateLimit,
-		E.FromPredicate(isPositiveInt, errInvalidRateLimit),
-	)
-}
-
-func validateConfig(cfg server.Config) E.Either[error, server.Config] {
-	return F.Pipe3(
-		E.Of[error](cfg),
-		E.Bind(cfgEndpointLens.Set, validateEndpoint),
-		E.Bind(cfgPortLens.Set, validatePort),
-		E.Bind(cfgRateLimitLens.Set, validateRateLimit),
-	)
-}
-
-func validateServerState(s serverState) E.Either[error, serverState] {
-	return F.Pipe1(
-		E.Of[error](s),
-		E.Bind(
-			stateCfgLens.Set,
-			F.Flow2(stateCfgLens.Get, validateConfig),
-		),
-	)
 }
 
 // RunServer validates CLI flags and runs the Streamable HTTP MCP server.
