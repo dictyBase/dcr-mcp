@@ -136,8 +136,7 @@ func newServerStubGraphQL(t *testing.T) *httptest.Server {
 							"label": "bzpN-",
 							"summary": "bzpN null",
 							"in_stock": true,
-							"genes": [{"name": "bzpN"}],
-							"publications": []
+							"genes": [{"name": "bzpN"}]
 						}]
 					}
 				}

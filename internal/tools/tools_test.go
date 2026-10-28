@@ -506,8 +506,7 @@ func serveToolsStockDetailStub(w http.ResponseWriter, req toolsStubRequest) {
 						"label": "bzpN-",
 						"summary": "bzpN null",
 						"in_stock": true,
-						"genes": [{"name": "bzpN"}],
-						"publications": []
+						"genes": [{"name": "bzpN"}]
 					}]
 				}
 			}
@@ -602,7 +601,13 @@ func TestMCPToolsSession(t *testing.T) {
 			Arguments: map[string]any{"phenotype": testGrowthPheno},
 		})
 		require.NoError(t, err)
-		require.False(t, res.IsError)
+		var toolText strings.Builder
+		for _, c := range res.Content {
+			if tc, ok := c.(*mcp.TextContent); ok {
+				toolText.WriteString(tc.Text)
+			}
+		}
+		require.False(t, res.IsError, "%s", toolText.String())
 		require.NotNil(t, res.StructuredContent)
 	})
 

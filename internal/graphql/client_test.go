@@ -163,17 +163,7 @@ func serveStockDetailStub(w http.ResponseWriter, req gqlRequest) {
 						"label": "bzpN-",
 						"summary": "bzpN null mutant",
 						"in_stock": true,
-						"genes": [{"name": "bzpN"}],
-						"publications": [{
-							"id": "21760904",
-							"pub_date": "2011-07-07T00:00:00.000Z",
-							"title": "BzpN slows proliferation",
-							"journal": "PloS one",
-							"volume": "6",
-							"pages": "e21765",
-							"doi": "10.1/x",
-							"authors": [{"last_name": "Phillips"}]
-						}]
+						"genes": [{"name": "bzpN"}]
 					}]
 				}
 			}
@@ -331,7 +321,42 @@ func TestClientOperations(t *testing.T) {
 		require.Equal(t, int64(1728057313873), res.NextCursor)
 		require.Len(t, res.Strains, 1)
 		require.Equal(t, "DBS0349965", res.Strains[0].ID)
-		require.Equal(t, "10.1/x", res.Strains[0].Publications[0].DOI)
+	})
+
+	t.Run("ListStrainsWithPhenotype omits publications from the list query", func(t *testing.T) {
+		var listQuery atomic.Value
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var req gqlRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case strings.Contains(req.Query, "listStrainsWithAnnotation"):
+				listQuery.Store(req.Query)
+				_, _ = w.Write([]byte(`{
+					"data": {
+						"listStrainsWithAnnotation": {
+							"totalCount": 1,
+							"nextCursor": 0,
+							"strains": [{"id": "DBS0349965", "label": "bzpN-", "genes": []}]
+						}
+					}
+				}`))
+			default:
+				_, _ = w.Write([]byte(`{"data":{"strain":{"publications":[]}}}`))
+			}
+		}))
+		defer srv.Close()
+
+		shapeClient := graphql.NewClient(srv.URL, srv.Client())
+		_, err := E.Unwrap(ioeutils.ToEither(shapeClient.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
+			Ctx:       ctx,
+			Phenotype: "increased growth rate",
+			Limit:     2,
+		})))
+		require.NoError(t, err)
+		query, _ := listQuery.Load().(string)
+		require.NotContains(t, query, "publications",
+			"one bad PMID must not fail the whole list query")
 	})
 }
 
