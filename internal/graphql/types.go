@@ -219,13 +219,24 @@ type (
 	}
 
 	// PhenotypeStrainItem holds a strain returned by listStrainsWithAnnotation.
+	// Publications is response-only data: the graphql:"-" tag keeps it out of the
+	// list query (one bad PMID would fail the whole query) and the fallback
+	// pipeline in the client fills it per strain.
 	PhenotypeStrainItem struct {
 		ID           string                    `graphql:"id" json:"id"`
 		Label        string                    `graphql:"label" json:"label"`
 		Summary      string                    `graphql:"summary" json:"summary"`
 		InStock      bool                      `graphql:"in_stock" json:"in_stock"`
 		Genes        []GeneRef                 `graphql:"genes" json:"genes"`
-		Publications []PhenotypePublicationRef `graphql:"publications" json:"publications"`
+		Publications []PhenotypePublicationRef `graphql:"-" json:"publications"`
+	}
+
+	// StrainPublicationQuery queries only the publications of one strain, so a
+	// legacy non-numeric PMID can fail at most one strain's publication fetch.
+	StrainPublicationQuery struct {
+		Strain struct {
+			Publications []PhenotypePublicationRef `graphql:"publications" json:"publications"`
+		} `graphql:"strain(id: $id)" json:"strain"`
 	}
 
 	// PhenotypeStrainList holds the paginated response from listStrainsWithAnnotation.
