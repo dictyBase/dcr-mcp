@@ -431,6 +431,23 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 
 func serveToolsStockDetailStub(w http.ResponseWriter, req toolsStubRequest) {
 	switch {
+	case strings.Contains(req.Query, "strain(") && !strings.Contains(req.Query, "label"):
+		writeToolsJSON(w, `{
+			"data": {
+				"strain": {
+					"publications": [{
+						"id": "21760904",
+						"pub_date": "2011-07-07T00:00:00.000Z",
+						"title": "BzpN slows proliferation",
+						"journal": "PloS one",
+						"volume": "6",
+						"pages": "e21765",
+						"doi": "10.1/x",
+						"authors": [{"last_name": "Phillips"}]
+					}]
+				}
+			}
+		}`)
 	case strings.Contains(req.Query, "strain("):
 		writeToolsJSON(w, `{
 			"data": {

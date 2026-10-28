@@ -310,6 +310,11 @@ var (
 		func(q *strainsWithGeneQuery) []GeneStrainItem { return q.ListStrainsWithGene },
 		nonNilSlice[GeneStrainItem],
 	)
+	toStrainPublications = F.Flow3(
+		func(q *StrainPublicationQuery) []PhenotypePublicationRef { return q.Strain.Publications },
+		A.Map(normalizePhenotypePubRef),
+		nonNilSlice[PhenotypePublicationRef],
+	)
 	// Ensure hasuragql is referenced when needed by schema types.
 	_ = hasuragql.ID("")
 )

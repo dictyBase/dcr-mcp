@@ -198,10 +198,14 @@ func (c *Client) GetPlasmid(params IDParams) IOE.IOEither[error, PlasmidDetail] 
 }
 
 // ListStrainsWithPhenotype executes listStrainsWithAnnotation with type "phenotype".
+// The list query carries no publications field: one legacy non-numeric PMID
+// would fail the whole list. The pipeline fetches publications per strain
+// afterwards, and a failed fetch degrades to an empty publication list for
+// that strain.
 func (c *Client) ListStrainsWithPhenotype(
 	params PhenotypeListParams,
 ) IOE.IOEither[error, PhenotypeStrainList] {
-	return F.Pipe2(
+	return F.Pipe3(
 		IOE.TryCatchError(func() (*listStrainsWithPhenotypeQuery, error) {
 			query := new(listStrainsWithPhenotypeQuery)
 			return query, c.gql.Query(params.Ctx, query, map[string]any{
@@ -219,6 +223,44 @@ func (c *Client) ListStrainsWithPhenotype(
 			)
 		}),
 		IOE.Map[error](toPhenotypeStrainList),
+		IOE.Chain(func(list PhenotypeStrainList) IOE.IOEither[error, PhenotypeStrainList] {
+			return F.Pipe2(
+				list.Strains,
+				IOE.TraverseArraySeq(
+					func(item PhenotypeStrainItem) IOE.IOEither[error, []PhenotypePublicationRef] {
+						return F.Pipe2(
+							IOE.TryCatchError(func() (*StrainPublicationQuery, error) {
+								query := new(StrainPublicationQuery)
+								return query, c.gql.Query(params.Ctx, query, map[string]any{
+									varID: hasuragql.ID(item.ID),
+								})
+							}),
+							IOE.Map[error](toStrainPublications),
+							IOE.OrElse(func(error) IOE.IOEither[error, []PhenotypePublicationRef] {
+								return F.Pipe1(
+									emptySlice[PhenotypePublicationRef](),
+									IOE.Of[error, []PhenotypePublicationRef],
+								)
+							}),
+						)
+					},
+				),
+				IOE.Map[error](func(pubLists [][]PhenotypePublicationRef) PhenotypeStrainList {
+					return PhenotypeStrainList{
+						Strains: A.ZipWith(
+							list.Strains,
+							pubLists,
+							func(item PhenotypeStrainItem, pubs []PhenotypePublicationRef) PhenotypeStrainItem {
+								item.Publications = pubs
+								return item
+							},
+						),
+						NextCursor: list.NextCursor,
+						TotalCount: list.TotalCount,
+					}
+				}),
+			)
+		}),
 	)
 }
 
