@@ -39,7 +39,7 @@ The Dicty Stock Center keeps *Dictyostelium* strains and plasmids. Each record h
 
 `dcr-mcp` makes this catalog available to AI assistants that use the Model Context Protocol (MCP). Type a question in your chat window. The assistant selects the correct lookup and answers with links.
 
-`dcr-mcp` gives your assistant 11 tools:
+`dcr-mcp` gives your assistant 12 tools:
 
 | Ability | Tool name | Use it for |
 | :--- | :--- | :--- |
@@ -48,8 +48,9 @@ The Dicty Stock Center keeps *Dictyostelium* strains and plasmids. Each record h
 | Stocks for a gene | `find_stocks_by_gene` | Strains and plasmids for a gene name or `DDB_G` ID. |
 | Strain record | `get_strain` | One `DBS...` record. |
 | Plasmid record | `get_plasmid` | One `DBP...` record. |
-| Phenotype terms | `suggest_phenotype_terms` | Exact catalog terms for a phenotype. |
-| Strains by phenotype | `list_strains_with_phenotype` | Strains that have one exact phenotype term. |
+| Plasmid sequence | `get_plasmid_sequence` | The DNA sequence of one `DBP...` plasmid as FASTA. |
+| Strains by phenotype statement | `search_phenotypes` | Strains that match free words in a phenotype, environment, or assay. |
+| Strains by phenotype term | `list_strains_with_phenotype` | Strains that have one exact phenotype term. |
 | Availability check | `check_availability` | Stock status of up to 25 IDs. |
 | Publication | `get_publication` | One publication, selected by PubMed ID. |
 | Document search | `search` | Search for ChatGPT deep research. |
@@ -155,29 +156,32 @@ Use a plasmid ID (`DBP...`).
 
 ### Find Strains by Phenotype
 
-The catalog uses controlled phenotype terms. Describe the phenotype in your own words. The assistant finds the exact term first.
+A phenotype statement on a strain has three parts: a phenotype (for example
+"abolished vegetative growth"), an environment (for example "in suspension"),
+and an assay (for example "motility assay"). Use plain words for any part.
 
 **Type one of these:**
 
-> Which phenotype terms in the catalog match "chemo"?
+> Which strains have an aggregation defect?
 
-> Find Dicty strains with aberrant chemotaxis.
+> Find strains with a phenotype measured in suspension.
 
-> List Dicty strains with the phenotype aberrant chemotaxis.
+> List every strain with the phenotype term abolished vegetative growth.
 
-**Behind the scenes:** `suggest_phenotype_terms`, then `list_strains_with_phenotype`.
+**Behind the scenes:** `search_phenotypes`, then `get_strain`. For a complete
+list of one phenotype term, the assistant then calls
+`list_strains_with_phenotype`.
+
+`search_phenotypes` returns at most 50 strains and has no more pages.
+`list_strains_with_phenotype` accepts only the exact phenotype term from a
+strain record. It does not accept an environment or an assay. It reports the
+strains on each page, not a catalog total.
 
 ### Read More Pages of Phenotype Results
 
-Phenotype lists arrive in pages. Ask for the next page.
-
-**Type one of these:**
-
-> Show the next page of those phenotype results.
-
-> Read all pages for aberrant chemotaxis, then group the strains by gene.
-
-**Behind the scenes:** `list_strains_with_phenotype` with `cursor`.
+Phenotype lists arrive in pages. Ask for the next page. The output reports
+`has_more` and `page_count`. `has_more=false` (`next_cursor` 0) means the last
+page. `page_count` counts the strains on the current page, not the catalog.
 
 ### Read a Cited Publication
 
