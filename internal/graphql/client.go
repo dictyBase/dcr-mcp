@@ -29,21 +29,29 @@ type Client struct {
 }
 
 const (
-	varQuery         = "query"
-	varLimit         = "limit"
-	varEntity        = "entity"
-	varID            = "id"
-	varCursor        = "cursor"
-	varType          = "type"
-	varAnnotation    = "annotation"
-	phenotypeType    = "phenotype"
-	varGene          = "gene"
-	notFoundCode     = "NotFound"
-	defaultCacheSize = 1024
-	defaultCacheTTL  = 10 * time.Minute
+	varQuery            = "query"
+	varLimit            = "limit"
+	varEntity           = "entity"
+	varID               = "id"
+	varCursor           = "cursor"
+	varType             = "type"
+	varAnnotation       = "annotation"
+	phenotypeType       = "phenotype"
+	varGene             = "gene"
+	notFoundCode        = "NotFound"
+	invalidArgumentCode = "InvalidArgument"
+	defaultCacheSize    = 1024
+	defaultCacheTTL     = 10 * time.Minute
 )
 
 var (
+	// ErrInvalidPhenotypeQuery marks a searchPhenotypes query that the server
+	// rejected, for example a query of stopwords only.
+	ErrInvalidPhenotypeQuery = errors.New(
+		"searchPhenotypes rejected the query: use a specific word from a phenotype statement, " +
+			"for example 'aggregation' or 'in suspension'. Common words such as 'the' do not match",
+	)
+
 	hasNotFoundCode = F.Pipe2(
 		notFoundCode,
 		EQ.Equals(predord.StringEq),
@@ -75,6 +83,13 @@ var (
 	// the class one bad PMID produces. Only that class degrades to an empty
 	// publication list; client-side transport and decode errors propagate, never
 	// degrade silently.
+	// isInvalidPhenotypeQuery reports an upstream InvalidArgument, the class a
+	// stopword-only searchPhenotypes query produces.
+	isInvalidPhenotypeQuery = F.Flow2(
+		gqlErrors,
+		A.Any(F.Pipe1(invalidArgumentCode, hasCode)),
+	)
+
 	hasDataError = F.Flow2(gqlErrors, A.Any(P.Not(isClientErrorEntry)))
 
 	geneFound = F.Pipe1(
@@ -153,6 +168,41 @@ func (c *Client) ListStockSuggestions(
 			return fmt.Errorf("listStockSuggestions query failed: %w", err)
 		}),
 		IOE.Map[error](toAutocompleteResult),
+	)
+}
+
+func invalidPhenotypeQueryErr(err error) error {
+	return fmt.Errorf("%w: %w", ErrInvalidPhenotypeQuery, err)
+}
+
+func phenotypeSearchFailed(err error) func() error {
+	wrapped := fmt.Errorf("searchPhenotypes query failed: %w", err)
+	return F.Constant(wrapped)
+}
+
+func mapPhenotypeSearchErr(err error) error {
+	return F.Pipe2(
+		err,
+		O.FromPredicate(isInvalidPhenotypeQuery),
+		O.Fold(F.Pipe1(err, phenotypeSearchFailed), invalidPhenotypeQueryErr),
+	)
+}
+
+// SearchPhenotypes executes the searchPhenotypes GraphQL query. It finds
+// strains by phenotype statement: phenotype, environment, or assay.
+func (c *Client) SearchPhenotypes(
+	params PhenotypeSearchParams,
+) IOE.IOEither[error, SearchResult] {
+	return F.Pipe2(
+		IOE.TryCatchError(func() (*searchPhenotypesQuery, error) {
+			query := new(searchPhenotypesQuery)
+			return query, c.gql.Query(params.Ctx, query, map[string]any{
+				varQuery: params.Query,
+				varLimit: params.Limit,
+			})
+		}),
+		IOE.MapLeft[*searchPhenotypesQuery](mapPhenotypeSearchErr),
+		IOE.Map[error](toPhenotypeSearchResult),
 	)
 }
 
