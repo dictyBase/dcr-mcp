@@ -37,6 +37,13 @@ type (
 		ID  string
 	}
 
+	// PhenotypeSearchParams holds validated inputs for SearchPhenotypes.
+	PhenotypeSearchParams struct {
+		Ctx   context.Context
+		Query string
+		Limit int
+	}
+
 	// PhenotypeListParams holds validated inputs for ListStrainsWithPhenotype.
 	PhenotypeListParams struct {
 		Ctx       context.Context
@@ -275,6 +282,15 @@ type (
 		Plasmid PlasmidDetail `graphql:"plasmid(id: $id)"`
 	}
 
+	// searchPhenotypesQuery is the GraphQL query structure for searchPhenotypes.
+	searchPhenotypesQuery struct {
+		SearchPhenotypes struct {
+			Results    []StockSearchHit `graphql:"results"`
+			Limit      int              `graphql:"limit"`
+			TotalCount int              `graphql:"totalCount"`
+		} `graphql:"searchPhenotypes(query: $query, limit: $limit)"`
+	}
+
 	// listStrainsWithPhenotypeQuery is the query structure for listStrainsWithAnnotation.
 	listStrainsWithPhenotypeQuery struct {
 		ListStrainsWithAnnotation struct {
@@ -349,6 +365,14 @@ func toSearchResult(q *searchStocksQuery) SearchResult {
 		Results:    nonNilSlice(q.SearchStocks.Results),
 		Limit:      q.SearchStocks.Limit,
 		TotalCount: q.SearchStocks.TotalCount,
+	}
+}
+
+func toPhenotypeSearchResult(q *searchPhenotypesQuery) SearchResult {
+	return SearchResult{
+		Results:    nonNilSlice(q.SearchPhenotypes.Results),
+		Limit:      q.SearchPhenotypes.Limit,
+		TotalCount: q.SearchPhenotypes.TotalCount,
 	}
 }
 
