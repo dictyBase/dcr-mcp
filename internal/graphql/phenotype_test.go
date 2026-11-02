@@ -19,6 +19,8 @@ const (
 		{"id":"DBS0235587","entity":"STRAIN","field":"TERM_SYNONYM",
 		 "display_text":"abolished vegetative growth","score":503.4,"summary":"chcA null",
 		 "stock_label":"chcA-","in_stock":true,"stock_type":"gwdi"}]}}}`
+	phenoGrowthWord = "growth"
+	// #nosec G101 -- test fixture text; "stopword" matches the credential pattern
 	stopwordBody = `{"errors":[{"message":"expect a search query with at least one non-stopword",
 		"path":["searchPhenotypes"],"extensions":{"code":"InvalidArgument"}}],"data":null}`
 	notFoundBody = `{"errors":[{"message":"annotation list not found",
@@ -57,9 +59,9 @@ func TestSearchPhenotypes(t *testing.T) {
 		srv := newFixedServer(t, phenoSearchBody, &vars)
 		defer srv.Close()
 		res, err := E.Unwrap(ioeutils.ToEither(graphql.NewClient(srv.URL, srv.Client()).
-			SearchPhenotypes(graphql.PhenotypeSearchParams{Ctx: ctx, Query: "growth", Limit: 2})))
+			SearchPhenotypes(graphql.PhenotypeSearchParams{Ctx: ctx, Query: phenoGrowthWord, Limit: 2})))
 		require.NoError(t, err)
-		require.Equal(t, map[string]any{"query": "growth", "limit": float64(2)}, vars)
+		require.Equal(t, map[string]any{"query": phenoGrowthWord, "limit": float64(2)}, vars)
 		require.Len(t, res.Results, 1)
 		require.Equal(t, "chcA-", res.Results[0].StockLabel)
 		require.Equal(t, "gwdi", res.Results[0].StockType)
@@ -78,7 +80,7 @@ func TestSearchPhenotypes(t *testing.T) {
 		srv := newFixedServer(t, phenoSearchBody, nil)
 		srv.Close()
 		_, err := E.Unwrap(ioeutils.ToEither(graphql.NewClient(srv.URL, srv.Client()).
-			SearchPhenotypes(graphql.PhenotypeSearchParams{Ctx: ctx, Query: "growth", Limit: 2})))
+			SearchPhenotypes(graphql.PhenotypeSearchParams{Ctx: ctx, Query: phenoGrowthWord, Limit: 2})))
 		require.Error(t, err)
 		require.False(t, errors.Is(err, graphql.ErrInvalidPhenotypeQuery))
 		require.Contains(t, err.Error(), "searchPhenotypes query failed")

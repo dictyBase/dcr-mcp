@@ -46,6 +46,9 @@ var (
 	errSearchLimitRange = eithererr.ConstErr[int](
 		"limit must be between 1 and 100",
 	)
+	errPhenoSearchLimitRange = eithererr.ConstErr[int](
+		"limit must be between 1 and 50",
+	)
 	errEmptyStrainID = eithererr.ConstErr[string](
 		"strain id is required",
 	)
@@ -83,6 +86,25 @@ var (
 	validIDCount = F.Pipe1(
 		predarrays.MaxLen[string](maxAvailabilityIDs),
 		P.And(predarrays.MinLen[string](1)),
+	)
+
+	isSearchQueryLongEnough   = predord.MinStrLen(minSearchQueryLen)
+	isPhenoSearchLimitInRange = predord.IntBetweenInclusive(1, maxPhenotypeSearchLimit)
+	resolvePhenoSearchLimit   = defaultIfZeroInt(defaultSearchLimit)
+
+	// validQuery trims a search query and enforces the 2-character minimum
+	// that search_stocks and search_phenotypes share.
+	validQuery = F.Flow2(
+		strings.TrimSpace,
+		E.FromPredicate(isSearchQueryLongEnough, errSearchQueryShort),
+	)
+
+	validateSearchQuery      = F.Flow2(searchQueryLens.Get, validQuery)
+	validatePhenoSearchQuery = F.Flow2(phenoSearchQueryLens.Get, validQuery)
+	validatePhenoSearchLimit = F.Flow3(
+		phenoSearchLimitLens.Get,
+		resolvePhenoSearchLimit,
+		E.FromPredicate(isPhenoSearchLimitInRange, errPhenoSearchLimitRange),
 	)
 )
 
@@ -161,17 +183,6 @@ func ValidateAutocompleteInput(
 	)
 }
 
-func validateSearchQuery(in SearchStocksInput) E.Either[error, string] {
-	return F.Pipe2(
-		in.Query,
-		strings.TrimSpace,
-		E.FromPredicate(
-			predord.MinStrLen(minSearchQueryLen),
-			errSearchQueryShort,
-		),
-	)
-}
-
 func validateSearchLimit(in SearchStocksInput) E.Either[error, int] {
 	resolveDefault := defaultIfZeroInt(defaultSearchLimit)
 	return F.Pipe2(
@@ -195,6 +206,17 @@ func ValidateSearchInput(in SearchStocksInput) E.Either[error, SearchStocksInput
 		E.Bind(searchQueryLens.Set, validateSearchQuery),
 		E.Bind(searchLimitLens.Set, validateSearchLimit),
 		E.Bind(searchEntityLens.Set, validateSearchEntity),
+	)
+}
+
+// ValidateSearchPhenotypesInput trims, defaults, and validates SearchPhenotypesInput.
+func ValidateSearchPhenotypesInput(
+	in SearchPhenotypesInput,
+) E.Either[error, SearchPhenotypesInput] {
+	return F.Pipe2(
+		E.Of[error](in),
+		E.Bind(phenoSearchQueryLens.Set, validatePhenoSearchQuery),
+		E.Bind(phenoSearchLimitLens.Set, validatePhenoSearchLimit),
 	)
 }
 

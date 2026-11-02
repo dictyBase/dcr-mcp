@@ -77,6 +77,19 @@ var (
 			}
 		},
 	)
+	toPhenotypeSearchState = F.Curry3(
+		func(
+			ctx context.Context,
+			client *graphql.Client,
+			in SearchPhenotypesInput,
+		) phenotypeSearchState {
+			return phenotypeSearchState{
+				ctx:    ctx,
+				client: client,
+				input:  in,
+			}
+		},
+	)
 	toFetchState = F.Curry3(
 		func(
 			ctx context.Context,
@@ -182,6 +195,41 @@ func newSearchHandler(
 			E.Fold(
 				toOutcomeError[SearchResultView],
 				toOutcomeWithMarkdown(renderSearchMarkdown),
+			),
+		)
+		return out.Result, out.Output, out.Err
+	}
+}
+
+func executeSearchPhenotypes(
+	s phenotypeSearchState,
+) IOE.IOEither[error, graphql.SearchResult] {
+	return s.client.SearchPhenotypes(graphql.PhenotypeSearchParams{
+		Ctx:   s.ctx,
+		Query: s.input.Query,
+		Limit: s.input.Limit,
+	})
+}
+
+func newSearchPhenotypesHandler(
+	client *graphql.Client,
+) mcp.ToolHandlerFor[SearchPhenotypesInput, PhenotypeSearchView] {
+	return func(
+		ctx context.Context,
+		_ *mcp.CallToolRequest,
+		input SearchPhenotypesInput,
+	) (*mcp.CallToolResult, PhenotypeSearchView, error) {
+		buildState := F.Pipe1(client, toPhenotypeSearchState(ctx))
+		out := F.Pipe6(
+			IOE.Of[error](input),
+			IOE.ChainEitherK(ValidateSearchPhenotypesInput),
+			IOE.Map[error](buildState),
+			IOE.Chain(executeSearchPhenotypes),
+			IOE.Map[error](toPhenotypeSearchView),
+			ioeutils.ToEither[error, PhenotypeSearchView],
+			E.Fold(
+				toOutcomeError[PhenotypeSearchView],
+				toOutcomeWithMarkdown(renderPhenotypeSearchMarkdown),
 			),
 		)
 		return out.Result, out.Output, out.Err
@@ -346,6 +394,13 @@ func RegisterAll(srv *mcp.Server, client *graphql.Client) {
 		Description: descSearch,
 		Annotations: readOnlyTool(titleSearch),
 	}, newSearchHandler(client))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        toolSearchPhenotypes,
+		Title:       titleSearchPhenotypes,
+		Description: descSearchPhenotypes,
+		Annotations: readOnlyTool(titleSearchPhenotypes),
+	}, newSearchPhenotypesHandler(client))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        toolGetStrain,

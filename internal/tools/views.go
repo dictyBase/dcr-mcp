@@ -62,10 +62,33 @@ type (
 		URL string `json:"url"`
 	}
 
+	// MatchedTextView groups search_phenotypes rows by the text that matched.
+	// The text can come from a phenotype, an environment, or an assay term, or
+	// from a term definition or comment. It is not always a phenotype term.
+	MatchedTextView struct {
+		Field       string `json:"field"`
+		DisplayText string `json:"display_text"`
+		StrainCount int    `json:"strain_count"`
+	}
+
+	// PhenotypeSearchView is the search_phenotypes output. Count is the number
+	// of rows. There are no further pages.
+	PhenotypeSearchView struct {
+		MatchedTexts []MatchedTextView `json:"matched_texts"`
+		Results      []SearchHitView   `json:"results"`
+		Limit        int               `json:"limit"`
+		Count        int               `json:"count"`
+	}
+
 	// PhenotypeStrainListView is the list_strains_with_phenotype output.
 	PhenotypeStrainListView struct {
 		Strains    []PhenotypeStrainView `json:"strains"`
 		NextCursor int64                 `json:"next_cursor"`
+	}
+
+	matchKey struct {
+		field       string
+		displayText string
 	}
 )
 
@@ -84,6 +107,8 @@ var (
 		S.IsNonEmpty,
 		P.ContraMap(func(d graphql.PlasmidDetail) string { return d.Sequence }),
 	)
+
+	toMatchedTextView = F.Curry2(matchedTextView)
 )
 
 // takeAtMost keeps the first n items and never returns nil, so JSON emits [] not null.
@@ -93,6 +118,19 @@ func takeAtMost[T any](n int) func([]T) []T {
 		A.Slice[T](0, n),
 		O.FromPredicate(hasElem),
 		O.GetOrElse(func() []T { return make([]T, 0) }),
+	)
+}
+
+func emptySlice[T any]() []T { return make([]T, 0) }
+
+// notNilSlice keeps JSON output [] instead of null, because fp-go A.Map and
+// A.Uniq return nil for an empty input.
+func notNilSlice[T any](items []T) []T {
+	hasElem := predarrays.IsNonEmpty[T]()
+	return F.Pipe2(
+		items,
+		O.FromPredicate(hasElem),
+		O.GetOrElse(emptySlice[T]),
 	)
 }
 
@@ -183,6 +221,46 @@ func toSearchResultView(r graphql.SearchResult) SearchResultView {
 
 func toPhenotypeStrainView(item graphql.PhenotypeStrainItem) PhenotypeStrainView {
 	return PhenotypeStrainView{PhenotypeStrainItem: item, URL: StrainURL(item.ID)}
+}
+
+func hitMatchKey(h graphql.StockSearchHit) matchKey {
+	return matchKey{field: h.Field, displayText: h.DisplayText}
+}
+
+// countMatch is the reducer of toMatchedTexts. It writes only to the map that
+// toMatchedTexts creates for one call.
+func countMatch(counts map[matchKey]int, h graphql.StockSearchHit) map[matchKey]int {
+	counts[hitMatchKey(h)]++
+	return counts
+}
+
+func matchedTextView(counts map[matchKey]int, h graphql.StockSearchHit) MatchedTextView {
+	return MatchedTextView{
+		Field:       h.Field,
+		DisplayText: h.DisplayText,
+		StrainCount: counts[hitMatchKey(h)],
+	}
+}
+
+// toMatchedTexts groups ranked rows by matched text in first-seen order, so
+// the most relevant text comes first.
+func toMatchedTexts(hits []graphql.StockSearchHit) []MatchedTextView {
+	counts := F.Pipe1(hits, A.Reduce(countMatch, make(map[matchKey]int)))
+	return F.Pipe3(
+		hits,
+		A.Uniq(hitMatchKey),
+		A.Map(F.Pipe1(counts, toMatchedTextView)),
+		notNilSlice[MatchedTextView],
+	)
+}
+
+func toPhenotypeSearchView(r graphql.SearchResult) PhenotypeSearchView {
+	return PhenotypeSearchView{
+		MatchedTexts: toMatchedTexts(r.Results),
+		Results:      F.Pipe2(r.Results, A.Map(toSearchHitView), notNilSlice[SearchHitView]),
+		Limit:        r.Limit,
+		Count:        A.Size(r.Results),
+	}
 }
 
 func toPhenotypeStrainListView(l graphql.PhenotypeStrainList) PhenotypeStrainListView {
