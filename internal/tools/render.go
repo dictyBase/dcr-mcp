@@ -28,6 +28,7 @@ const (
 	strainHeader      = "Strains"
 	strainWord        = "strain"
 	strainsWord       = "strains"
+	noValue           = "—"
 )
 
 var (
@@ -41,6 +42,11 @@ var (
 	strainNoun = map[bool]string{
 		true:  strainWord,
 		false: strainsWord,
+	}
+
+	morePagesLabel = map[bool]string{
+		true:  "yes (pass next_cursor as cursor)",
+		false: "no",
 	}
 
 	// markdownEscaper protects user-supplied catalog text from changing the
@@ -166,10 +172,24 @@ func publicationItem(p graphql.PublicationRef) ast.Node {
 	return listItem(append(parts, doiSuffix(p.DOI)...)...)
 }
 
+func valueOrDash(s string) string {
+	return F.Pipe3(
+		s,
+		O.FromPredicate(S.IsNonEmpty),
+		O.Map(oneLine),
+		O.GetOrElse(F.Constant(noValue)),
+	)
+}
+
+// phenotypeItem labels each part of a phenotype statement, so a client copies
+// the phenotype term (not the environment or the assay) into
+// list_strains_with_phenotype.
 func phenotypeItem(p graphql.PhenotypeItem) ast.Node {
 	return listItem(
-		text(oneLine(p.Phenotype)),
-		text(fmt.Sprintf(" (assay: %s; environment: %s) — ", oneLine(p.Assay), oneLine(p.Environment))),
+		text("Phenotype term: "+oneLine(p.Phenotype)),
+		text(fmt.Sprintf(" · environment: %s · assay: %s — ",
+			valueOrDash(p.Environment), valueOrDash(p.Assay),
+		)),
 		link("PubMed "+oneLine(p.Publication.ID), PubMedURL(p.Publication.ID)),
 	)
 }
@@ -267,6 +287,24 @@ func renderPhenotypeSearchMarkdown(v PhenotypeSearchView) string {
 	nodes = append(nodes, intro)
 	nodes = append(nodes, section(matchedTextHeader, F.Pipe1(v.MatchedTexts, A.Map(matchedTextItem)))...)
 	nodes = append(nodes, section(strainHeader, F.Pipe1(v.Results, A.Map(searchItem)))...)
+	return renderNodes(nodes)
+}
+
+func phenotypeStrainItem(s PhenotypeStrainView) ast.Node {
+	return listItem(
+		link(s.ID, s.URL),
+		text(fmt.Sprintf(" — %s · %s", oneLine(s.Label), availabilityLabel[s.InStock])),
+	)
+}
+
+func renderPhenotypeStrainListMarkdown(v PhenotypeStrainListView) string {
+	intro := paragraph(text(fmt.Sprintf(
+		"%d strains with phenotype term \"%s\" on this page. More pages: %s.",
+		v.PageCount, oneLine(v.PhenotypeTerm), morePagesLabel[v.HasMore],
+	)))
+	nodes := make([]ast.Node, 0, 4)
+	nodes = append(nodes, intro)
+	nodes = append(nodes, section(strainHeader, F.Pipe1(v.Strains, A.Map(phenotypeStrainItem)))...)
 	return renderNodes(nodes)
 }
 

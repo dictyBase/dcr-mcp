@@ -51,9 +51,9 @@ type (
 
 	// ListStrainsWithPhenotypeInput defines the parameters for list_strains_with_phenotype.
 	ListStrainsWithPhenotypeInput struct {
-		Phenotype string `json:"phenotype" jsonschema:"Phenotype annotation name (for example increased growth rate)"`
-		Cursor    int    `json:"cursor,omitempty" jsonschema:"Pagination cursor (default 0)"`
-		Limit     int    `json:"limit,omitempty" jsonschema:"Maximum number of strains to return (default 10, 1-100)"`
+		PhenotypeTerm string `json:"phenotype_term" jsonschema:"Exact, case-sensitive phenotype term label from get_strain"`
+		Cursor        int    `json:"cursor,omitempty" jsonschema:"next_cursor from the previous page (0 for the first page)"`
+		Limit         int    `json:"limit,omitempty" jsonschema:"Maximum number of strains per page (default 10, 1-100)"`
 	}
 
 	// ChatGPTSearchInput defines the JSON Schema parameters for the ChatGPT-compatible search tool.
@@ -284,10 +284,10 @@ var (
 		},
 	)
 
-	phenoNameLens = L.MakeLens(
-		func(in ListStrainsWithPhenotypeInput) string { return in.Phenotype },
+	phenoTermLens = L.MakeLens(
+		func(in ListStrainsWithPhenotypeInput) string { return in.PhenotypeTerm },
 		func(in ListStrainsWithPhenotypeInput, p string) ListStrainsWithPhenotypeInput {
-			in.Phenotype = p
+			in.PhenotypeTerm = p
 			return in
 		},
 	)

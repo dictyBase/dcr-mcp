@@ -78,10 +78,16 @@ func TestSearchAndPhenotypeViews(t *testing.T) {
 	require.Equal(t, "https://dictycr.org/plasmids/DBP1", search.Results[1].URL)
 	require.Equal(t, 2, search.TotalCount)
 
-	pheno := tools.ToPhenotypeStrainListView(graphql.PhenotypeStrainList{
-		Strains:    []graphql.PhenotypeStrainItem{{ID: "DBS9"}},
-		NextCursor: 42,
-	})
+	pheno := F.Pipe1(
+		graphql.PhenotypeStrainList{
+			Strains:    []graphql.PhenotypeStrainItem{{ID: "DBS9"}},
+			NextCursor: 42,
+		},
+		tools.ToPhenotypeStrainListView(testGrowthPheno),
+	)
 	require.Equal(t, "https://dictycr.org/strains/DBS9", pheno.Strains[0].URL)
 	require.EqualValues(t, 42, pheno.NextCursor)
+	require.True(t, pheno.HasMore)
+	require.Equal(t, 1, pheno.PageCount)
+	require.Equal(t, testGrowthPheno, pheno.PhenotypeTerm)
 }
