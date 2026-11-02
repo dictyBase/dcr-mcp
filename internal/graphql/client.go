@@ -22,11 +22,18 @@ import (
 
 // Client wraps a hasura GraphQL client with functional IOEither query methods
 // and a short-lived cache for single-record lookups.
-type Client struct {
-	gql          *hasuragql.Client
-	strainCache  *expirable.LRU[string, StrainDetail]
-	plasmidCache *expirable.LRU[string, PlasmidDetail]
-}
+type (
+	Client struct {
+		gql          *hasuragql.Client
+		strainCache  *expirable.LRU[string, StrainDetail]
+		plasmidCache *expirable.LRU[string, PlasmidDetail]
+	}
+
+	phenotypeListFailure struct {
+		term string
+		err  error
+	}
+)
 
 const (
 	varQuery            = "query"
@@ -51,6 +58,16 @@ var (
 	ErrInvalidPhenotypeQuery = errors.New(
 		"searchPhenotypes rejected the query: use a specific word from a phenotype statement, " +
 			"for example 'aggregation' or 'in suspension'. Common words such as 'the' do not match",
+	)
+
+	// ErrNotPhenotypeTerm marks a list_strains_with_phenotype input that is not
+	// the exact label of a Dicty Phenotypes ontology term.
+	ErrNotPhenotypeTerm = errors.New(
+		"not an exact phenotype term. list_strains_with_phenotype accepts only the exact, " +
+			"case-sensitive label of a Dicty Phenotypes ontology term. Environment terms " +
+			"(for example 'in suspension') and assay terms (for example 'motility assay') are not accepted. " +
+			"Call search_phenotypes, then get_strain on a result strain, and copy the phenotype field " +
+			"of a phenotype statement",
 	)
 
 	hasNotFoundCode = F.Pipe2(
@@ -186,21 +203,6 @@ func (c *Client) ListStockSuggestions(
 		}),
 		IOE.Map[error](toAutocompleteResult),
 	)
-}
-
-// ErrNotPhenotypeTerm marks a list_strains_with_phenotype input that is not
-// the exact label of a Dicty Phenotypes ontology term.
-var ErrNotPhenotypeTerm = errors.New(
-	"not an exact phenotype term. list_strains_with_phenotype accepts only the exact, " +
-		"case-sensitive label of a Dicty Phenotypes ontology term. Environment terms " +
-		"(for example 'in suspension') and assay terms (for example 'motility assay') are not accepted. " +
-		"Call search_phenotypes, then get_strain on a result strain, and copy the phenotype field " +
-		"of a phenotype statement",
-)
-
-type phenotypeListFailure struct {
-	term string
-	err  error
 }
 
 func invalidPhenotypeQueryErr(err error) error {

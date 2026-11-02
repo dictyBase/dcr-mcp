@@ -235,7 +235,7 @@ func TestHTTPHandler(t *testing.T) {
 
 		toolsRes, err := session.ListTools(ctx, nil)
 		require.NoError(t, err)
-		require.Len(t, toolsRes.Tools, 12)
+		require.Len(t, toolsRes.Tools, 13)
 
 		for _, tc := range []struct {
 			name string

@@ -261,6 +261,25 @@ func serveToolsGraphQLStub(w http.ResponseWriter, req toolsStubRequest) {
 	case strings.Contains(req.Query, "geneGeneralInformation"),
 		strings.Contains(req.Query, "listStrainsWithGene"):
 		serveToolsGeneStub(w, req)
+	case strings.Contains(req.Query, "searchPhenotypes"):
+		writeToolsJSON(w, `{
+			"data": {
+				"searchPhenotypes": {
+					"limit": 15,
+					"totalCount": 2,
+					"results": [
+						{"id": "DBS0235587", "entity": "STRAIN", "field": "TERM_LABEL",
+						 "display_text": "abolished vegetative growth", "score": 503.4,
+						 "summary": "chcA null", "stock_label": "chcA-", "in_stock": true,
+						 "stock_type": "regular"},
+						{"id": "DBS0236827", "entity": "STRAIN", "field": "TERM_LABEL",
+						 "display_text": "abolished vegetative growth", "score": 503.4,
+						 "summary": "proA/proB", "stock_label": "[AS]proA/proB-", "in_stock": true,
+						 "stock_type": "gwdi"}
+					]
+				}
+			}
+		}`)
 	case strings.Contains(req.Query, "searchStocks"):
 		serveToolsSearchStub(w, req)
 	case strings.Contains(req.Query, "publication("):
@@ -558,13 +577,23 @@ func newToolsSession(t *testing.T) *mcp.ClientSession {
 	return session
 }
 
+func toolText(res *mcp.CallToolResult) string {
+	var b strings.Builder
+	for _, c := range res.Content {
+		if tc, ok := c.(*mcp.TextContent); ok {
+			b.WriteString(tc.Text)
+		}
+	}
+	return b.String()
+}
+
 func TestMCPToolsSession(t *testing.T) {
 	session := newToolsSession(t)
 	ctx := context.Background()
 
 	listRes, err := session.ListTools(ctx, nil)
 	require.NoError(t, err)
-	require.Len(t, listRes.Tools, 12)
+	require.Len(t, listRes.Tools, 13)
 
 	t.Run("autocomplete_stocks", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
@@ -632,6 +661,23 @@ func TestMCPToolsSession(t *testing.T) {
 		}
 		require.False(t, res.IsError, "%s", toolText.String())
 		require.NotNil(t, res.StructuredContent)
+	})
+
+	t.Run("search_phenotypes", func(t *testing.T) {
+		res, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "search_phenotypes",
+			Arguments: map[string]any{testQueryKey: "vegetative growth"},
+		})
+		require.NoError(t, err)
+		require.False(t, res.IsError, "%s", toolText(res))
+		structured, ok := res.StructuredContent.(map[string]any)
+		require.True(t, ok)
+		require.EqualValues(t, 2, structured["count"])
+		texts, ok := structured["matched_texts"].([]any)
+		require.True(t, ok)
+		require.Len(t, texts, 1)
+		require.Contains(t, toolText(res), "Top 2 strain matches")
+		require.Contains(t, toolText(res), "· gwdi")
 	})
 
 	t.Run("get_plasmid_sequence returns FASTA", func(t *testing.T) {

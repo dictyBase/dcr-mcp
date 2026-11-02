@@ -19,11 +19,15 @@ import (
 )
 
 const (
-	yearLen          = 4
-	phenotypeHeader  = "Phenotypes"
-	paperHeader      = "Publications"
-	noneRecorded     = "None recorded."
-	regularStockType = "regular"
+	yearLen           = 4
+	phenotypeHeader   = "Phenotypes"
+	paperHeader       = "Publications"
+	noneRecorded      = "None recorded."
+	regularStockType  = "regular"
+	matchedTextHeader = "Matched text"
+	strainHeader      = "Strains"
+	strainWord        = "strain"
+	strainsWord       = "strains"
 )
 
 var (
@@ -32,6 +36,11 @@ var (
 	availabilityLabel = map[bool]string{
 		true:  "✅ in stock",
 		false: "❌ not in stock",
+	}
+
+	strainNoun = map[bool]string{
+		true:  strainWord,
+		false: strainsWord,
 	}
 
 	// markdownEscaper protects user-supplied catalog text from changing the
@@ -240,6 +249,25 @@ func searchItem(h SearchHitView) ast.Node {
 			availabilityLabel[h.InStock], stockTypeSuffix(h.StockType),
 		)),
 	)
+}
+
+func matchedTextItem(m MatchedTextView) ast.Node {
+	line := fmt.Sprintf("%s (%s) — %d %s",
+		oneLine(m.DisplayText), oneLine(m.Field), m.StrainCount, strainNoun[m.StrainCount == 1],
+	)
+	return listItem(text(line))
+}
+
+func renderPhenotypeSearchMarkdown(v PhenotypeSearchView) string {
+	intro := paragraph(text(fmt.Sprintf(
+		"Top %d strain matches (maximum %d, no further pages).",
+		v.Count, maxPhenotypeSearchLimit,
+	)))
+	nodes := make([]ast.Node, 0, 8)
+	nodes = append(nodes, intro)
+	nodes = append(nodes, section(matchedTextHeader, F.Pipe1(v.MatchedTexts, A.Map(matchedTextItem)))...)
+	nodes = append(nodes, section(strainHeader, F.Pipe1(v.Results, A.Map(searchItem)))...)
+	return renderNodes(nodes)
 }
 
 func renderSearchMarkdown(v SearchResultView) string {

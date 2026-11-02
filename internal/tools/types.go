@@ -43,6 +43,12 @@ type (
 		ID string `json:"id" jsonschema:"dictyBase plasmid ID (for example DBP0391806)"`
 	}
 
+	// SearchPhenotypesInput defines the JSON Schema parameters for search_phenotypes.
+	SearchPhenotypesInput struct {
+		Query string `json:"query" jsonschema:"Words from a phenotype statement (at least 2 characters)"`
+		Limit int    `json:"limit,omitempty" jsonschema:"Maximum number of strain rows to return (default 15, 1-50)"`
+	}
+
 	// ListStrainsWithPhenotypeInput defines the parameters for list_strains_with_phenotype.
 	ListStrainsWithPhenotypeInput struct {
 		Phenotype string `json:"phenotype" jsonschema:"Phenotype annotation name (for example increased growth rate)"`
@@ -118,6 +124,12 @@ type (
 		input  ListStrainsWithPhenotypeInput
 	}
 
+	phenotypeSearchState struct {
+		ctx    context.Context
+		client *graphql.Client
+		input  SearchPhenotypesInput
+	}
+
 	fetchState struct {
 		ctx    context.Context
 		client *graphql.Client
@@ -158,9 +170,10 @@ const (
 	maxAutocompleteLimit     = 50
 	minAutocompleteQueryLen  = 3
 
-	defaultSearchLimit = 15
-	maxSearchLimit     = 100
-	minSearchQueryLen  = 2
+	defaultSearchLimit      = 15
+	maxSearchLimit          = 100
+	minSearchQueryLen       = 2
+	maxPhenotypeSearchLimit = 50
 
 	defaultPhenotypeLimit = 10
 	maxPhenotypeLimit     = 100
@@ -252,6 +265,21 @@ var (
 		func(in GetPlasmidInput) string { return in.Detail },
 		func(in GetPlasmidInput, d string) GetPlasmidInput {
 			in.Detail = d
+			return in
+		},
+	)
+
+	phenoSearchQueryLens = L.MakeLens(
+		func(in SearchPhenotypesInput) string { return in.Query },
+		func(in SearchPhenotypesInput, q string) SearchPhenotypesInput {
+			in.Query = q
+			return in
+		},
+	)
+	phenoSearchLimitLens = L.MakeLens(
+		func(in SearchPhenotypesInput) int { return in.Limit },
+		func(in SearchPhenotypesInput, l int) SearchPhenotypesInput {
+			in.Limit = l
 			return in
 		},
 	)

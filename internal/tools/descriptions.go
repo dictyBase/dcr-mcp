@@ -16,6 +16,16 @@ const (
 		"and plasmids with DBP IDs) across names, genotypes, summaries, and phenotypes. " +
 		"Use for discovery questions. Returns ranked hits with availability."
 
+	toolSearchPhenotypes  = "search_phenotypes"
+	titleSearchPhenotypes = "Search strains by phenotype statement"
+	descSearchPhenotypes  = "Find Dictyostelium strains by phenotype statement from free words. " +
+		"A phenotype statement has a phenotype, an environment, and an assay part (for example " +
+		"'abolished vegetative growth', 'in suspension', 'motility assay'). The query matches the label, " +
+		"synonyms, definition, and comments of any part. Each result row is one strain. matched_texts " +
+		"groups the rows by the matched text. Returns at most 50 rows and has no further pages. " +
+		"A matched text can be an environment, an assay, or a definition, so it is not always a phenotype " +
+		"term: call get_strain to read the phenotype field before you call list_strains_with_phenotype."
+
 	toolGetStrain  = "get_strain"
 	titleGetStrain = "Get a strain record"
 	descGetStrain  = "Fetch one Dictyostelium strain record by its DBS ID (for example DBS0350840): " +
