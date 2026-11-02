@@ -71,12 +71,6 @@ type (
 		Gene string `json:"gene" jsonschema:"Gene name (for example pkaC) or dictyBase gene id (for example DDB_G0283907)"`
 	}
 
-	// SuggestPhenotypeTermsInput defines the JSON Schema parameters for suggest_phenotype_terms.
-	SuggestPhenotypeTermsInput struct {
-		Query string `json:"query" jsonschema:"Phenotype keywords (at least 3 characters), for example growth rate"`
-		Limit int    `json:"limit,omitempty" jsonschema:"Maximum number of terms (default 10, 1-25)"`
-	}
-
 	// CheckAvailabilityInput defines the JSON Schema parameters for check_availability.
 	CheckAvailabilityInput struct {
 		IDs []string `json:"ids" jsonschema:"1 to 25 strain (DBS...) and/or plasmid (DBP...) ids"`
@@ -145,13 +139,6 @@ type (
 		plasmids graphql.SearchResult
 	}
 
-	phenoTermsState struct {
-		ctx    context.Context
-		client *graphql.Client
-		input  SuggestPhenotypeTermsInput
-		result graphql.SearchResult
-	}
-
 	availabilityState struct {
 		ctx    context.Context
 		client *graphql.Client
@@ -185,11 +172,6 @@ const (
 
 	minGeneQueryLen  = 2
 	genePlasmidLimit = 25
-
-	phenotypeSampleLimit  = 100
-	defaultPhenoTermLimit = 10
-	maxPhenoTermLimit     = 25
-	minPhenoTermQueryLen  = 3
 
 	maxAvailabilityIDs = 25
 )
@@ -339,28 +321,6 @@ var (
 		func(s geneStocksState) graphql.SearchResult { return s.plasmids },
 		func(s geneStocksState, r graphql.SearchResult) geneStocksState {
 			s.plasmids = r
-			return s
-		},
-	)
-
-	phenoTermQueryLens = L.MakeLens(
-		func(in SuggestPhenotypeTermsInput) string { return in.Query },
-		func(in SuggestPhenotypeTermsInput, q string) SuggestPhenotypeTermsInput {
-			in.Query = q
-			return in
-		},
-	)
-	phenoTermLimitLens = L.MakeLens(
-		func(in SuggestPhenotypeTermsInput) int { return in.Limit },
-		func(in SuggestPhenotypeTermsInput, l int) SuggestPhenotypeTermsInput {
-			in.Limit = l
-			return in
-		},
-	)
-	phenoTermsResultLens = L.MakeLens(
-		func(s phenoTermsState) graphql.SearchResult { return s.result },
-		func(s phenoTermsState, r graphql.SearchResult) phenoTermsState {
-			s.result = r
 			return s
 		},
 	)

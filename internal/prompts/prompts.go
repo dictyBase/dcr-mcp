@@ -55,16 +55,21 @@ var (
 	phenotypeSurvey = spec{
 		name:           "phenotype_survey",
 		title:          "Survey strains with a phenotype",
-		description:    "Find the exact phenotype term, page through matching strains, and summarize by gene.",
+		description:    "Find strains by phenotype statement, confirm exact phenotype terms, and summarize by gene.",
 		argName:        "phenotype",
-		argDescription: "A phenotype in plain words, for example 'fast growth' or 'aggregation defect'",
+		argDescription: "A phenotype, environment, or assay in plain words, for example 'aggregation defect'",
 		template: "Survey strains with the phenotype: {{phenotype}}.\n" +
-			"1. Call suggest_phenotype_terms with query={{phenotype}} and pick the best matching exact term; " +
-			"if several fit, tell me which you chose.\n" +
-			"2. Call list_strains_with_phenotype with that term, following next_cursor until there are no more " +
-			"pages or you have 50 strains.\n" +
-			"3. Group the strains by gene and give counts, then a table of in-stock strains with linked IDs.\n" +
-			"4. Say how many strains matched in total (total_count).",
+			"1. Call search_phenotypes with query={{phenotype}}. Show matched_texts and say which ones fit " +
+			"the request, and whether each is a phenotype, an environment, or an assay.\n" +
+			"2. Call get_strain on the top strains under the fitting texts to read the full phenotype " +
+			"statement and its publication.\n" +
+			"3. If a phenotype term from step 2 fits (the phenotype field, not the environment or the assay), " +
+			"call list_strains_with_phenotype with phenotype_term set to that exact text. Follow next_cursor " +
+			"until has_more is false or you have 50 unique strains. If the request is about an environment " +
+			"or an assay, skip this step and use the search_phenotypes rows only.\n" +
+			"4. Group the strains by gene and give counts, then a table of in-stock strains with linked IDs.\n" +
+			"5. Report the number of unique strains you collected. Call it a catalog total only if has_more " +
+			"became false.",
 	}
 
 	orderChecklist = spec{

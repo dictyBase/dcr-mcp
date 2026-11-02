@@ -455,13 +455,6 @@ func RegisterAll(srv *mcp.Server, client *graphql.Client) {
 	}, newFindStocksByGeneHandler(client))
 
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        toolSuggestPhenoTerms,
-		Title:       titleSuggestPhenoTerms,
-		Description: descSuggestPhenoTerms,
-		Annotations: readOnlyTool(titleSuggestPhenoTerms),
-	}, newSuggestPhenotypeTermsHandler(client))
-
-	mcp.AddTool(srv, &mcp.Tool{
 		Name:        toolCheckAvailability,
 		Title:       titleCheckAvailability,
 		Description: descCheckAvailability,

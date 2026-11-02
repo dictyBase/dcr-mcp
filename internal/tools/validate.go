@@ -70,12 +70,6 @@ var (
 	errGeneShort = eithererr.ConstErr[string](
 		"gene must be at least 2 characters",
 	)
-	errPhenoTermQueryShort = eithererr.ConstErr[string](
-		"query must be at least 3 characters",
-	)
-	errPhenoTermLimitRange = eithererr.ConstErr[int](
-		"limit must be between 1 and 25",
-	)
 	errAvailabilityIDCount = eithererr.ConstErr[[]string](
 		"ids must contain between 1 and 25 non-empty ids",
 	)
@@ -358,37 +352,6 @@ func ValidateFindStocksByGeneInput(in FindStocksByGeneInput) E.Either[error, Fin
 	return F.Pipe1(
 		E.Of[error](in),
 		E.Bind(geneNameLens.Set, validateGeneName),
-	)
-}
-
-func validatePhenoTermQuery(in SuggestPhenotypeTermsInput) E.Either[error, string] {
-	return F.Pipe2(
-		in.Query,
-		strings.TrimSpace,
-		E.FromPredicate(predord.MinStrLen(minPhenoTermQueryLen), errPhenoTermQueryShort),
-	)
-}
-
-func validatePhenoTermLimit(in SuggestPhenotypeTermsInput) E.Either[error, int] {
-	resolveDefault := defaultIfZeroInt(defaultPhenoTermLimit)
-	return F.Pipe2(
-		in.Limit,
-		resolveDefault,
-		E.FromPredicate(
-			predord.IntBetweenInclusive(1, maxPhenoTermLimit),
-			errPhenoTermLimitRange,
-		),
-	)
-}
-
-// ValidateSuggestPhenotypeTermsInput trims, defaults, and validates SuggestPhenotypeTermsInput.
-func ValidateSuggestPhenotypeTermsInput(
-	in SuggestPhenotypeTermsInput,
-) E.Either[error, SuggestPhenotypeTermsInput] {
-	return F.Pipe2(
-		E.Of[error](in),
-		E.Bind(phenoTermQueryLens.Set, validatePhenoTermQuery),
-		E.Bind(phenoTermLimitLens.Set, validatePhenoTermLimit),
 	)
 }
 

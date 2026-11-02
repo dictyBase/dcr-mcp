@@ -74,12 +74,6 @@ const (
 		"every strain linked to that gene, and plasmids whose names match it. " +
 		"Use this first whenever the user asks about mutants, knockouts, or constructs for a gene."
 
-	toolSuggestPhenoTerms  = "suggest_phenotype_terms"
-	titleSuggestPhenoTerms = "Suggest exact phenotype terms"
-	descSuggestPhenoTerms  = "Turn a loose phenotype description (for example 'grows faster' or 'aggregation') into " +
-		"the exact phenotype terms used in the catalog. Call this before list_strains_with_phenotype, " +
-		"which only accepts exact terms."
-
 	toolCheckAvailability  = "check_availability"
 	titleCheckAvailability = "Check stock availability"
 	descCheckAvailability  = "Check whether up to 25 strains (DBS ids) and/or plasmids (DBP ids) are in stock, " +
