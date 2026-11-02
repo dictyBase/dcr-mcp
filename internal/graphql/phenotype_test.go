@@ -21,6 +21,17 @@ const (
 		 "stock_label":"chcA-","in_stock":true,"stock_type":"gwdi"}]}}}`
 	stopwordBody = `{"errors":[{"message":"expect a search query with at least one non-stopword",
 		"path":["searchPhenotypes"],"extensions":{"code":"InvalidArgument"}}],"data":null}`
+	notFoundBody = `{"errors":[{"message":"annotation list not found",
+		"path":["listStrainsWithAnnotation"],"extensions":{"code":"NotFound"}}],
+		"data":{"listStrainsWithAnnotation":null}}`
+	internalBody = `{"errors":[{"message":"syntax error, unexpected RETURN",
+		"path":["listStrainsWithAnnotation"],"extensions":{"code":"Internal"}}],
+		"data":{"listStrainsWithAnnotation":null}}`
+	duplicatePageBody = `{"data":{"listStrainsWithAnnotation":{"nextCursor":0,"strains":[
+		{"id":"DBS1","label":"a-","summary":"","in_stock":true,"genes":[]},
+		{"id":"DBS2","label":"b-","summary":"","in_stock":true,"genes":[]},
+		{"id":"DBS1","label":"a-","summary":"","in_stock":true,"genes":[]}]}}}`
+	emptyPublicationsBody = `{"data":{"strain":{"publications":[]}}}`
 )
 
 // newFixedServer answers every request with body and records the variables
@@ -71,5 +82,40 @@ func TestSearchPhenotypes(t *testing.T) {
 		require.Error(t, err)
 		require.False(t, errors.Is(err, graphql.ErrInvalidPhenotypeQuery))
 		require.Contains(t, err.Error(), "searchPhenotypes query failed")
+	})
+}
+
+func TestListStrainsWithPhenotypeTermContract(t *testing.T) {
+	ctx := context.Background()
+	params := graphql.PhenotypeListParams{Ctx: ctx, PhenotypeTerm: "in suspension", Limit: 10}
+
+	for name, body := range map[string]string{"NotFound": notFoundBody, "Internal": internalBody} {
+		t.Run(name+" maps to ErrNotPhenotypeTerm", func(t *testing.T) {
+			srv := newFixedServer(t, body, nil)
+			defer srv.Close()
+			_, err := E.Unwrap(ioeutils.ToEither(
+				graphql.NewClient(srv.URL, srv.Client()).ListStrainsWithPhenotype(params)))
+			require.True(t, errors.Is(err, graphql.ErrNotPhenotypeTerm))
+			require.Contains(t, err.Error(), `"in suspension" is not an exact phenotype term`)
+		})
+	}
+
+	t.Run("removes duplicate strains and keeps order", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var req gqlRequest
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+			w.Header().Set("Content-Type", "application/json")
+			body := map[bool]string{true: duplicatePageBody, false: emptyPublicationsBody}
+			_, _ = w.Write([]byte(body[req.Variables["annotation"] != nil]))
+		}))
+		defer srv.Close()
+		res, err := E.Unwrap(ioeutils.ToEither(
+			graphql.NewClient(srv.URL, srv.Client()).ListStrainsWithPhenotype(
+				graphql.PhenotypeListParams{Ctx: ctx, PhenotypeTerm: "abolished vegetative growth", Limit: 10})))
+		require.NoError(t, err)
+		require.Len(t, res.Strains, 2)
+		require.Equal(t, "DBS1", res.Strains[0].ID)
+		require.Equal(t, "DBS2", res.Strains[1].ID)
+		require.Zero(t, res.NextCursor)
 	})
 }

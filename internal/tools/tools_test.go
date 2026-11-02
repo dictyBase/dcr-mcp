@@ -523,7 +523,6 @@ func serveToolsStockDetailStub(w http.ResponseWriter, req toolsStubRequest) {
 		writeToolsJSON(w, `{
 			"data": {
 				"listStrainsWithAnnotation": {
-					"totalCount": 1,
 					"nextCursor": 1728057313873,
 					"strains": [{
 						"id": "DBS0349965",

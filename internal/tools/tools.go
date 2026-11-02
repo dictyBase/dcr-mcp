@@ -287,10 +287,10 @@ func executeListPhenotypeStrains(
 	s phenotypeListState,
 ) IOE.IOEither[error, graphql.PhenotypeStrainList] {
 	return s.client.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
-		Ctx:       s.ctx,
-		Phenotype: s.input.Phenotype,
-		Cursor:    s.input.Cursor,
-		Limit:     s.input.Limit,
+		Ctx:           s.ctx,
+		PhenotypeTerm: s.input.Phenotype,
+		Cursor:        s.input.Cursor,
+		Limit:         s.input.Limit,
 	})
 }
 

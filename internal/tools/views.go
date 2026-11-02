@@ -66,7 +66,6 @@ type (
 	PhenotypeStrainListView struct {
 		Strains    []PhenotypeStrainView `json:"strains"`
 		NextCursor int64                 `json:"next_cursor"`
-		TotalCount int                   `json:"total_count"`
 	}
 )
 
@@ -190,6 +189,5 @@ func toPhenotypeStrainListView(l graphql.PhenotypeStrainList) PhenotypeStrainLis
 	return PhenotypeStrainListView{
 		Strains:    F.Pipe1(l.Strains, A.Map(toPhenotypeStrainView)),
 		NextCursor: l.NextCursor,
-		TotalCount: l.TotalCount,
 	}
 }

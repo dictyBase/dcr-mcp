@@ -147,7 +147,6 @@ func newServerStubGraphQL(t *testing.T) *httptest.Server {
 			writeServerStubJSON(w, `{
 				"data": {
 					"listStrainsWithAnnotation": {
-						"totalCount": 1,
 						"nextCursor": 1728057313873,
 						"strains": [{
 							"id": "DBS0349965",
