@@ -72,7 +72,7 @@ func TestRenderSearchMarkdown(t *testing.T) {
 	md := tools.RenderSearchMarkdown(tools.ToSearchResultView(graphql.SearchResult{
 		Results: []graphql.StockSearchHit{{
 			ID: testShortStrainID, Entity: graphql.StockEntityStrain, Field: "SUMMARY",
-			DisplayText: "a | b", StrainLabel: "x-", InStock: true,
+			DisplayText: "a | b", StockLabel: "x-", InStock: true,
 		}},
 		Limit: 15, TotalCount: 1,
 	}))

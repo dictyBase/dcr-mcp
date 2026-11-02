@@ -114,7 +114,7 @@ type (
 		DisplayText string          `graphql:"display_text" json:"display_text"`
 		Score       float64         `graphql:"score" json:"score"`
 		Summary     string          `graphql:"summary" json:"summary"`
-		StrainLabel string          `graphql:"strain_label" json:"strain_label"`
+		StockLabel  string          `graphql:"stock_label" json:"stock_label"`
 		InStock     bool            `graphql:"in_stock" json:"in_stock"`
 	}
 

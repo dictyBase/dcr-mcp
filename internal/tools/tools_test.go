@@ -337,7 +337,7 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 						"display_text": "pDXA-YFP-MCS1-PKA-Fret",
 						"score": 10,
 						"summary": "",
-						"strain_label": "",
+						"stock_label": "",
 						"in_stock": true
 					}]
 				}
@@ -358,7 +358,7 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 							"display_text": "increased growth rate",
 							"score": 9,
 							"summary": "",
-							"strain_label": "",
+							"stock_label": "",
 							"in_stock": true
 						},
 						{
@@ -368,7 +368,7 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 							"display_text": "increased growth rate",
 							"score": 8,
 							"summary": "",
-							"strain_label": "",
+							"stock_label": "",
 							"in_stock": true
 						},
 						{
@@ -378,7 +378,7 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 							"display_text": "grows fast",
 							"score": 7,
 							"summary": "",
-							"strain_label": "",
+							"stock_label": "",
 							"in_stock": true
 						},
 						{
@@ -388,7 +388,7 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 							"display_text": "decreased growth rate",
 							"score": 6,
 							"summary": "",
-							"strain_label": "",
+							"stock_label": "",
 							"in_stock": true
 						}
 					]
@@ -409,7 +409,7 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 							"display_text": "act15:triA",
 							"score": 1011.4,
 							"summary": "triA null",
-							"strain_label": "triA-",
+							"stock_label": "triA-",
 							"in_stock": true
 						},
 						{
@@ -419,7 +419,7 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 							"display_text": "triA null",
 							"score": 900.0,
 							"summary": "triA null",
-							"strain_label": "triA-",
+							"stock_label": "triA-",
 							"in_stock": true
 						}
 					]
