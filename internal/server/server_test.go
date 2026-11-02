@@ -235,7 +235,7 @@ func TestHTTPHandler(t *testing.T) {
 
 		toolsRes, err := session.ListTools(ctx, nil)
 		require.NoError(t, err)
-		require.Len(t, toolsRes.Tools, 13)
+		require.Len(t, toolsRes.Tools, 12)
 
 		for _, tc := range []struct {
 			name string
@@ -271,7 +271,8 @@ func TestServerInstructions(t *testing.T) {
 
 	instructions := session.InitializeResult().Instructions
 	require.Contains(t, instructions, "find_stocks_by_gene")
-	require.Contains(t, instructions, "suggest_phenotype_terms")
+	require.Contains(t, instructions, "search_phenotypes")
+	require.NotContains(t, instructions, "suggest_phenotype_terms")
 	require.Contains(t, instructions, "url")
 }
 

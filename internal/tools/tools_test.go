@@ -609,7 +609,7 @@ func TestMCPToolsSession(t *testing.T) {
 
 	listRes, err := session.ListTools(ctx, nil)
 	require.NoError(t, err)
-	require.Len(t, listRes.Tools, 13)
+	require.Len(t, listRes.Tools, 12)
 
 	t.Run("autocomplete_stocks", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{

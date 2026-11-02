@@ -54,7 +54,9 @@ const (
 		"strains (DBS ids) and plasmids (DBP ids). Guidance: " +
 		"use find_stocks_by_gene when the user names a gene; " +
 		"use search_stocks for other discovery questions and autocomplete_stocks for partial names or ids; " +
-		"call suggest_phenotype_terms before list_strains_with_phenotype because phenotype terms must match exactly; " +
+		"use search_phenotypes to find strains by phenotype statement (phenotype, environment, or assay) " +
+		"from free words; list_strains_with_phenotype accepts only an exact phenotype term, so copy it from " +
+		"the phenotype field of get_strain first and never pass an environment or an assay term; " +
 		"use get_strain and get_plasmid with the default detail=summary and switch to detail=full only when needed; " +
 		"use check_availability before recommending stocks to order; " +
 		"use get_publication to read a paper cited on a record. " +
