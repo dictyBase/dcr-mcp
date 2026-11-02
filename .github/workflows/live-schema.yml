@@ -1,0 +1,19 @@
+name: Live schema check
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: check out code
+        uses: actions/checkout@v7
+      - name: set up golang
+        uses: actions/setup-go@v7
+        with:
+          go-version: 1.26
+      - name: live schema test
+        run: go test -tags live -run TestLiveSchema -v ./internal/graphql/...
+        env:
+          GOPROXY: https://proxy.golang.org
