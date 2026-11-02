@@ -252,23 +252,18 @@ func stockTypeLabel(stockType string) string {
 	return " · " + oneLine(stockType)
 }
 
-func stockTypeSuffix(stockType string) string {
-	return F.Pipe3(
-		stockType,
+func searchItem(h SearchHitView) ast.Node {
+	suffix := F.Pipe3(
+		h.StockType,
 		O.FromPredicate(isSpecialStockType),
 		O.Map(stockTypeLabel),
 		O.GetOrElse(F.Constant("")),
 	)
-}
-
-func searchItem(h SearchHitView) ast.Node {
-	return listItem(
-		link(h.ID, h.URL),
-		text(fmt.Sprintf(" — %s · %s: %s · %s%s",
-			oneLine(h.StockLabel), oneLine(h.Field), oneLine(h.DisplayText),
-			availabilityLabel[h.InStock], stockTypeSuffix(h.StockType),
-		)),
+	line := fmt.Sprintf(" — %s · %s: %s · %s%s",
+		oneLine(h.StockLabel), oneLine(h.Field), oneLine(h.DisplayText),
+		availabilityLabel[h.InStock], suffix,
 	)
+	return listItem(link(h.ID, h.URL), text(line))
 }
 
 func matchedTextItem(m MatchedTextView) ast.Node {
