@@ -331,15 +331,19 @@ func newGetPlasmidSequenceHandler(
 	}
 }
 
+// executeListPhenotypeStrains returns the view directly, because the view
+// echoes the normalized phenotype term from the state.
 func executeListPhenotypeStrains(
 	s phenotypeListState,
-) IOE.IOEither[error, graphql.PhenotypeStrainList] {
-	return s.client.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
+) IOE.IOEither[error, PhenotypeStrainListView] {
+	query := s.client.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
 		Ctx:           s.ctx,
-		PhenotypeTerm: s.input.Phenotype,
+		PhenotypeTerm: s.input.PhenotypeTerm,
 		Cursor:        s.input.Cursor,
 		Limit:         s.input.Limit,
 	})
+	toView := F.Pipe1(s.input.PhenotypeTerm, toPhenotypeStrainListView)
+	return F.Pipe1(query, IOE.Map[error](toView))
 }
 
 func newListPhenotypeStrainsHandler(
@@ -351,16 +355,15 @@ func newListPhenotypeStrainsHandler(
 		input ListStrainsWithPhenotypeInput,
 	) (*mcp.CallToolResult, PhenotypeStrainListView, error) {
 		buildState := F.Pipe1(client, toPhenotypeListState(ctx))
-		out := F.Pipe6(
+		out := F.Pipe5(
 			IOE.Of[error](input),
 			IOE.ChainEitherK(ValidatePhenotypeListInput),
 			IOE.Map[error](buildState),
 			IOE.Chain(executeListPhenotypeStrains),
-			IOE.Map[error](toPhenotypeStrainListView),
 			ioeutils.ToEither[error, PhenotypeStrainListView],
 			E.Fold(
 				toOutcomeError[PhenotypeStrainListView],
-				toOutcomeSuccess[PhenotypeStrainListView],
+				toOutcomeWithMarkdown(renderPhenotypeStrainListMarkdown),
 			),
 		)
 		return out.Result, out.Output, out.Err

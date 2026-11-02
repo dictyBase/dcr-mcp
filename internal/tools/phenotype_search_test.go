@@ -101,3 +101,20 @@ func TestRenderPhenotypeSearchMarkdown(t *testing.T) {
 	require.Contains(t, md, "· gwdi")
 	require.NotContains(t, md, "· regular")
 }
+
+func TestRenderPhenotypeStrainListMarkdown(t *testing.T) {
+	last := F.Pipe2(
+		graphql.PhenotypeStrainList{Strains: []graphql.PhenotypeStrainItem{{ID: "DBS9", Label: "x-"}}},
+		tools.ToPhenotypeStrainListView(testVegGrowth),
+		tools.RenderPhenotypeStrainListMarkdown,
+	)
+	require.Contains(t, last, `1 strains with phenotype term "abolished vegetative growth" on this page. More pages: no.`)
+	require.Contains(t, last, "[DBS9](https://dictycr.org/strains/DBS9)")
+
+	more := F.Pipe2(
+		graphql.PhenotypeStrainList{Strains: []graphql.PhenotypeStrainItem{}, NextCursor: 7},
+		tools.ToPhenotypeStrainListView(testVegGrowth),
+		tools.RenderPhenotypeStrainListMarkdown,
+	)
+	require.Contains(t, more, "More pages: yes")
+}

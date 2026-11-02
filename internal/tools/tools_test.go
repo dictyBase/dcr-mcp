@@ -176,29 +176,35 @@ func TestValidateIDAndPhenotypeInputs(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("ValidatePhenotypeListInput applies defaults and checks bounds", func(t *testing.T) {
+	t.Run("ValidatePhenotypeListInput normalizes the term and checks bounds", func(t *testing.T) {
 		got, err := E.Unwrap(tools.ValidatePhenotypeListInput(tools.ListStrainsWithPhenotypeInput{
-			Phenotype: " increased growth rate ",
+			PhenotypeTerm: "  increased   growth rate ",
 		}))
 		require.NoError(t, err)
-		require.Equal(t, testGrowthPheno, got.Phenotype)
+		require.Equal(t, testGrowthPheno, got.PhenotypeTerm)
 		require.Equal(t, 0, got.Cursor)
 		require.Equal(t, 10, got.Limit)
 
+		kept, err := E.Unwrap(tools.ValidatePhenotypeListInput(tools.ListStrainsWithPhenotypeInput{
+			PhenotypeTerm: "decreased cAMP Response",
+		}))
+		require.NoError(t, err)
+		require.Equal(t, "decreased cAMP Response", kept.PhenotypeTerm, "case is kept")
+
 		_, err = E.Unwrap(tools.ValidatePhenotypeListInput(tools.ListStrainsWithPhenotypeInput{
-			Phenotype: testBlankQuery,
+			PhenotypeTerm: testBlankQuery,
 		}))
 		require.Error(t, err)
 
 		_, err = E.Unwrap(tools.ValidatePhenotypeListInput(tools.ListStrainsWithPhenotypeInput{
-			Phenotype: testGrowthPheno,
-			Cursor:    -1,
+			PhenotypeTerm: testGrowthPheno,
+			Cursor:        -1,
 		}))
 		require.Error(t, err)
 
 		_, err = E.Unwrap(tools.ValidatePhenotypeListInput(tools.ListStrainsWithPhenotypeInput{
-			Phenotype: testGrowthPheno,
-			Limit:     101,
+			PhenotypeTerm: testGrowthPheno,
+			Limit:         101,
 		}))
 		require.Error(t, err)
 	})
@@ -538,6 +544,16 @@ func serveToolsStockDetailStub(w http.ResponseWriter, req toolsStubRequest) {
 				}
 			}
 		}`)
+	case strings.Contains(req.Query, "listStrainsWithAnnotation") &&
+		req.Variables["annotation"] == "in suspension":
+		writeToolsJSON(w, `{
+			"errors": [{
+				"message": "annotation list not found",
+				"path": ["listStrainsWithAnnotation"],
+				"extensions": {"code": "NotFound"}
+			}],
+			"data": {"listStrainsWithAnnotation": null}
+		}`)
 	case strings.Contains(req.Query, "listStrainsWithAnnotation"):
 		writeToolsJSON(w, `{
 			"data": {
@@ -650,17 +666,27 @@ func TestMCPToolsSession(t *testing.T) {
 	t.Run("list_strains_with_phenotype", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
 			Name:      "list_strains_with_phenotype",
-			Arguments: map[string]any{"phenotype": testGrowthPheno},
+			Arguments: map[string]any{"phenotype_term": testGrowthPheno},
 		})
 		require.NoError(t, err)
-		var toolText strings.Builder
-		for _, c := range res.Content {
-			if tc, ok := c.(*mcp.TextContent); ok {
-				toolText.WriteString(tc.Text)
-			}
-		}
-		require.False(t, res.IsError, "%s", toolText.String())
-		require.NotNil(t, res.StructuredContent)
+		require.False(t, res.IsError, "%s", toolText(res))
+		structured, ok := res.StructuredContent.(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, testGrowthPheno, structured["phenotype_term"])
+		require.EqualValues(t, 1, structured["page_count"])
+		require.Equal(t, true, structured["has_more"])
+		require.Contains(t, toolText(res), "More pages: yes")
+	})
+
+	t.Run("list_strains_with_phenotype rejects an environment term", func(t *testing.T) {
+		res, err := session.CallTool(ctx, &mcp.CallToolParams{
+			Name:      "list_strains_with_phenotype",
+			Arguments: map[string]any{"phenotype_term": "in suspension"},
+		})
+		require.NoError(t, err)
+		require.True(t, res.IsError)
+		require.Contains(t, toolText(res), "not an exact phenotype term")
+		require.Contains(t, toolText(res), "search_phenotypes")
 	})
 
 	t.Run("search_phenotypes", func(t *testing.T) {

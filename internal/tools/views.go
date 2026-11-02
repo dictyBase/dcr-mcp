@@ -81,9 +81,13 @@ type (
 	}
 
 	// PhenotypeStrainListView is the list_strains_with_phenotype output.
+	// PageCount is the number of unique strains on this page, not a total.
 	PhenotypeStrainListView struct {
-		Strains    []PhenotypeStrainView `json:"strains"`
-		NextCursor int64                 `json:"next_cursor"`
+		PhenotypeTerm string                `json:"phenotype_term"`
+		Strains       []PhenotypeStrainView `json:"strains"`
+		NextCursor    int64                 `json:"next_cursor"`
+		HasMore       bool                  `json:"has_more"`
+		PageCount     int                   `json:"page_count"`
 	}
 
 	matchKey struct {
@@ -109,6 +113,10 @@ var (
 	)
 
 	toMatchedTextView = F.Curry2(matchedTextView)
+
+	hasNextPage = P.IsNonZero[int64]()
+
+	toPhenotypeStrainListView = F.Curry2(phenotypeStrainListView)
 )
 
 // takeAtMost keeps the first n items and never returns nil, so JSON emits [] not null.
@@ -263,9 +271,15 @@ func toPhenotypeSearchView(r graphql.SearchResult) PhenotypeSearchView {
 	}
 }
 
-func toPhenotypeStrainListView(l graphql.PhenotypeStrainList) PhenotypeStrainListView {
+func phenotypeStrainListView(
+	term string,
+	l graphql.PhenotypeStrainList,
+) PhenotypeStrainListView {
 	return PhenotypeStrainListView{
-		Strains:    F.Pipe1(l.Strains, A.Map(toPhenotypeStrainView)),
-		NextCursor: l.NextCursor,
+		PhenotypeTerm: term,
+		Strains:       F.Pipe2(l.Strains, A.Map(toPhenotypeStrainView), notNilSlice[PhenotypeStrainView]),
+		NextCursor:    l.NextCursor,
+		HasMore:       hasNextPage(l.NextCursor),
+		PageCount:     A.Size(l.Strains),
 	}
 }

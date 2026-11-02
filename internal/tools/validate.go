@@ -55,8 +55,8 @@ var (
 	errEmptyPlasmidID = eithererr.ConstErr[string](
 		"plasmid id is required",
 	)
-	errEmptyPhenotype = eithererr.ConstErr[string](
-		"phenotype is required",
+	errEmptyPhenotypeTerm = eithererr.ConstErr[string](
+		"phenotype_term is required: copy it from the phenotype field of get_strain",
 	)
 	errNegativeCursor = eithererr.ConstErr[int](
 		"cursor must be non-negative",
@@ -105,6 +105,16 @@ var (
 		phenoSearchLimitLens.Get,
 		resolvePhenoSearchLimit,
 		E.FromPredicate(isPhenoSearchLimitInRange, errPhenoSearchLimitRange),
+	)
+
+	// normalizePhenotypeTerm trims and collapses inner whitespace. It keeps the
+	// case, because listStrainsWithAnnotation matches case-sensitively.
+	normalizePhenotypeTerm = F.Flow2(strings.Fields, F.Bind2nd(strings.Join, " "))
+
+	validatePhenotypeTerm = F.Flow3(
+		phenoTermLens.Get,
+		normalizePhenotypeTerm,
+		E.FromPredicate(S.IsNonEmpty, errEmptyPhenotypeTerm),
 	)
 )
 
@@ -286,14 +296,6 @@ func ValidatePlasmidIDInput(in GetPlasmidInput) E.Either[error, GetPlasmidInput]
 	)
 }
 
-func validatePhenotypeName(in ListStrainsWithPhenotypeInput) E.Either[error, string] {
-	return F.Pipe2(
-		in.Phenotype,
-		strings.TrimSpace,
-		E.FromPredicate(S.IsNonEmpty, errEmptyPhenotype),
-	)
-}
-
 func validatePhenotypeCursor(in ListStrainsWithPhenotypeInput) E.Either[error, int] {
 	return F.Pipe1(
 		in.Cursor,
@@ -313,13 +315,14 @@ func validatePhenotypeLimit(in ListStrainsWithPhenotypeInput) E.Either[error, in
 	)
 }
 
-// ValidatePhenotypeListInput trims, defaults, and validates ListStrainsWithPhenotypeInput.
+// ValidatePhenotypeListInput normalizes the phenotype term, defaults, and
+// validates ListStrainsWithPhenotypeInput.
 func ValidatePhenotypeListInput(
 	in ListStrainsWithPhenotypeInput,
 ) E.Either[error, ListStrainsWithPhenotypeInput] {
 	return F.Pipe3(
 		E.Of[error](in),
-		E.Bind(phenoNameLens.Set, validatePhenotypeName),
+		E.Bind(phenoTermLens.Set, validatePhenotypeTerm),
 		E.Bind(phenoCursorLens.Set, validatePhenotypeCursor),
 		E.Bind(phenoLimitLens.Set, validatePhenotypeLimit),
 	)

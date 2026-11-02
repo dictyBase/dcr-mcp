@@ -246,7 +246,7 @@ func TestHTTPHandler(t *testing.T) {
 			{name: "get_strain", args: map[string]any{"id": "DBS0350840"}},
 			{name: "get_plasmid", args: map[string]any{"id": "DBP0391806"}},
 			{name: "get_plasmid_sequence", args: map[string]any{"id": "DBP0000001"}},
-			{name: "list_strains_with_phenotype", args: map[string]any{"phenotype": "increased growth rate"}},
+			{name: "list_strains_with_phenotype", args: map[string]any{"phenotype_term": "increased growth rate"}},
 		} {
 			res, callErr := session.CallTool(ctx, &mcp.CallToolParams{
 				Name:      tc.name,

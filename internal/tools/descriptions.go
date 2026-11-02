@@ -31,7 +31,8 @@ const (
 	descGetStrain  = "Fetch one Dictyostelium strain record by its DBS ID (for example DBS0350840): " +
 		"genotype, phenotypes, depositor, publications, availability, and the stock page url. " +
 		"Defaults to detail=summary (at most 10 phenotypes and 5 publications; phenotype_count and " +
-		"publication_count give the totals). Pass detail=full only when the user needs every annotation."
+		"publication_count give the totals). Pass detail=full only when the user needs every annotation. " +
+		"The phenotype field of each phenotype statement is the valid input for list_strains_with_phenotype."
 
 	toolGetPlasmid  = "get_plasmid"
 	titleGetPlasmid = "Get a plasmid record"
@@ -47,10 +48,13 @@ const (
 		"sequences can be several kilobases."
 
 	toolListPhenotype  = "list_strains_with_phenotype"
-	titleListPhenotype = "List strains with a phenotype"
-	descListPhenotype  = "List strains annotated with one exact phenotype term (for example " +
-		"'increased growth rate'), paged with cursor and next_cursor. The term must match exactly; " +
-		"pass next_cursor back as cursor to read the next page."
+	titleListPhenotype = "List strains with an exact phenotype term"
+	descListPhenotype  = "List strains annotated with one exact phenotype term. phenotype_term must be the " +
+		"exact, case-sensitive label of a Dicty Phenotypes ontology term, copied from the phenotype field " +
+		"of get_strain. Environment terms, assay terms, definitions, and free words are rejected with an " +
+		"error. To find strains from free words, or by environment or assay, use search_phenotypes. " +
+		"Pass next_cursor back as cursor. has_more=false (next_cursor 0) means the last page. " +
+		"page_count is the number of strains on this page, not a catalog total."
 
 	toolChatGPTSearch  = "search"
 	titleChatGPTSearch = "Search stocks (document search)"
