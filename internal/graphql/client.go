@@ -40,6 +40,7 @@ const (
 	varGene             = "gene"
 	notFoundCode        = "NotFound"
 	invalidArgumentCode = "InvalidArgument"
+	internalCode        = "Internal"
 	defaultCacheSize    = 1024
 	defaultCacheTTL     = 10 * time.Minute
 )
@@ -89,6 +90,22 @@ var (
 		gqlErrors,
 		A.Any(F.Pipe1(invalidArgumentCode, hasCode)),
 	)
+
+	// hasRejectedTermCode matches NotFound (text is not a phenotype term) and
+	// Internal (text breaks the upstream query, for example a comma).
+	hasRejectedTermCode = F.Pipe2(
+		notFoundCode,
+		hasCode,
+		P.Or(F.Pipe1(internalCode, hasCode)),
+	)
+
+	isRejectedTermFailure = F.Pipe1(
+		F.Flow2(gqlErrors, A.Any(hasRejectedTermCode)),
+		P.ContraMap(phenotypeListFailureErr),
+	)
+
+	// phenotypeListErr maps a listStrainsWithAnnotation error for one term.
+	phenotypeListErr = F.Curry2(mapPhenotypeListErr)
 
 	hasDataError = F.Flow2(gqlErrors, A.Any(P.Not(isClientErrorEntry)))
 
@@ -171,6 +188,21 @@ func (c *Client) ListStockSuggestions(
 	)
 }
 
+// ErrNotPhenotypeTerm marks a list_strains_with_phenotype input that is not
+// the exact label of a Dicty Phenotypes ontology term.
+var ErrNotPhenotypeTerm = errors.New(
+	"not an exact phenotype term. list_strains_with_phenotype accepts only the exact, " +
+		"case-sensitive label of a Dicty Phenotypes ontology term. Environment terms " +
+		"(for example 'in suspension') and assay terms (for example 'motility assay') are not accepted. " +
+		"Call search_phenotypes, then get_strain on a result strain, and copy the phenotype field " +
+		"of a phenotype statement",
+)
+
+type phenotypeListFailure struct {
+	term string
+	err  error
+}
+
 func invalidPhenotypeQueryErr(err error) error {
 	return fmt.Errorf("%w: %w", ErrInvalidPhenotypeQuery, err)
 }
@@ -185,6 +217,33 @@ func mapPhenotypeSearchErr(err error) error {
 		err,
 		O.FromPredicate(isInvalidPhenotypeQuery),
 		O.Fold(F.Pipe1(err, phenotypeSearchFailed), invalidPhenotypeQueryErr),
+	)
+}
+
+func phenotypeListFailureErr(f phenotypeListFailure) error { return f.err }
+
+func notPhenotypeTermErr(f phenotypeListFailure) error {
+	return fmt.Errorf("%q is %w: %w", f.term, ErrNotPhenotypeTerm, f.err)
+}
+
+func phenotypeListQueryFailed(f phenotypeListFailure) func() error {
+	wrapped := fmt.Errorf(
+		"listStrainsWithAnnotation query for phenotype term %q failed: %w",
+		f.term,
+		f.err,
+	)
+	return F.Constant(wrapped)
+}
+
+// mapPhenotypeListErr turns NotFound and Internal into ErrNotPhenotypeTerm.
+// NotFound means "not a phenotype term", not "zero strains", so it must not
+// become an empty list.
+func mapPhenotypeListErr(term string, err error) error {
+	failure := phenotypeListFailure{term: term, err: err}
+	return F.Pipe2(
+		failure,
+		O.FromPredicate(isRejectedTermFailure),
+		O.Fold(F.Pipe1(failure, phenotypeListQueryFailed), notPhenotypeTermErr),
 	)
 }
 
@@ -285,16 +344,10 @@ func (c *Client) ListStrainsWithPhenotype(
 				varCursor:     params.Cursor,
 				varLimit:      params.Limit,
 				varType:       phenotypeType,
-				varAnnotation: params.Phenotype,
+				varAnnotation: params.PhenotypeTerm,
 			})
 		}),
-		IOE.MapLeft[*listStrainsWithPhenotypeQuery](func(err error) error {
-			return fmt.Errorf(
-				"listStrainsWithAnnotation query for phenotype %q failed: %w",
-				params.Phenotype,
-				err,
-			)
-		}),
+		IOE.MapLeft[*listStrainsWithPhenotypeQuery](F.Pipe1(params.PhenotypeTerm, phenotypeListErr)),
 		IOE.Map[error](toPhenotypeStrainList),
 		IOE.Chain(func(list PhenotypeStrainList) IOE.IOEither[error, PhenotypeStrainList] {
 			return F.Pipe2(
@@ -343,7 +396,6 @@ func (c *Client) ListStrainsWithPhenotype(
 							},
 						),
 						NextCursor: list.NextCursor,
-						TotalCount: list.TotalCount,
 					}
 				}),
 			)

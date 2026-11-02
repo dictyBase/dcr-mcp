@@ -179,7 +179,6 @@ func serveStockDetailStub(w http.ResponseWriter, req gqlRequest) {
 		_, _ = w.Write([]byte(`{
 			"data": {
 				"listStrainsWithAnnotation": {
-					"totalCount": 1,
 					"nextCursor": 1728057313873,
 					"strains": [{
 						"id": "DBS0349965",
@@ -335,13 +334,12 @@ func TestClientOperations(t *testing.T) {
 
 	t.Run("ListStrainsWithPhenotype returns strains and nextCursor", func(t *testing.T) {
 		res, err := E.Unwrap(ioeutils.ToEither(client.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
-			Ctx:       ctx,
-			Phenotype: testPhenotype,
-			Cursor:    0,
-			Limit:     2,
+			Ctx:           ctx,
+			PhenotypeTerm: testPhenotype,
+			Cursor:        0,
+			Limit:         2,
 		})))
 		require.NoError(t, err)
-		require.Equal(t, 1, res.TotalCount)
 		require.Equal(t, int64(1728057313873), res.NextCursor)
 		require.Len(t, res.Strains, 1)
 		require.Equal(t, "DBS0349965", res.Strains[0].ID)
@@ -364,7 +362,6 @@ func TestListStrainsWithPhenotypePublications(t *testing.T) {
 				_, _ = w.Write([]byte(`{
 					"data": {
 						"listStrainsWithAnnotation": {
-							"totalCount": 1,
 							"nextCursor": 0,
 							"strains": [{"id": "DBS0349965", "label": "bzpN-", "genes": []}]
 						}
@@ -378,9 +375,9 @@ func TestListStrainsWithPhenotypePublications(t *testing.T) {
 
 		shapeClient := graphql.NewClient(srv.URL, srv.Client())
 		_, err := E.Unwrap(ioeutils.ToEither(shapeClient.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
-			Ctx:       ctx,
-			Phenotype: testPhenotype,
-			Limit:     2,
+			Ctx:           ctx,
+			PhenotypeTerm: testPhenotype,
+			Limit:         2,
 		})))
 		require.NoError(t, err)
 		query, _ := listQuery.Load().(string)
@@ -399,7 +396,6 @@ func TestListStrainsWithPhenotypePublications(t *testing.T) {
 				_, _ = w.Write([]byte(`{
 					"data": {
 						"listStrainsWithAnnotation": {
-							"totalCount": 2,
 							"nextCursor": 0,
 							"strains": [
 								{"id": "DBS0349965", "label": "bzpN-", "genes": []},
@@ -441,9 +437,9 @@ func TestListStrainsWithPhenotypePublications(t *testing.T) {
 
 		mergeClient := graphql.NewClient(srv.URL, srv.Client())
 		res, err := E.Unwrap(ioeutils.ToEither(mergeClient.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
-			Ctx:       ctx,
-			Phenotype: testPhenotype,
-			Limit:     2,
+			Ctx:           ctx,
+			PhenotypeTerm: testPhenotype,
+			Limit:         2,
 		})))
 		require.NoError(t, err, "one bad PMID must not fail the whole list")
 		require.Len(t, res.Strains, 2)
@@ -466,7 +462,6 @@ func TestListStrainsWithPhenotypeFailureModes(t *testing.T) {
 				_, _ = w.Write([]byte(`{
 					"data": {
 						"listStrainsWithAnnotation": {
-							"totalCount": 1,
 							"nextCursor": 0,
 							"strains": [{"id": "DBS0349965", "label": "bzpN-", "genes": []}]
 						}
@@ -481,9 +476,9 @@ func TestListStrainsWithPhenotypeFailureModes(t *testing.T) {
 
 		failClient := graphql.NewClient(srv.URL, srv.Client())
 		_, err := E.Unwrap(ioeutils.ToEither(failClient.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
-			Ctx:       ctx,
-			Phenotype: testPhenotype,
-			Limit:     2,
+			Ctx:           ctx,
+			PhenotypeTerm: testPhenotype,
+			Limit:         2,
 		})))
 		require.Error(t, err, "a transport failure must not masquerade as empty publications")
 		require.ErrorContains(t, err, "publication query for strain")
@@ -501,7 +496,6 @@ func TestListStrainsWithPhenotypeFailureModes(t *testing.T) {
 				_, _ = w.Write([]byte(`{
 					"data": {
 						"listStrainsWithAnnotation": {
-							"totalCount": 8,
 							"nextCursor": 0,
 							"strains": [
 								{"id": "DBS0000001", "label": "s1-", "genes": []},
@@ -533,9 +527,9 @@ func TestListStrainsWithPhenotypeFailureModes(t *testing.T) {
 
 		parClient := graphql.NewClient(srv.URL, srv.Client())
 		res, err := E.Unwrap(ioeutils.ToEither(parClient.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
-			Ctx:       ctx,
-			Phenotype: testPhenotype,
-			Limit:     strainCount,
+			Ctx:           ctx,
+			PhenotypeTerm: testPhenotype,
+			Limit:         strainCount,
 		})))
 		require.NoError(t, err)
 		require.Len(t, res.Strains, strainCount)

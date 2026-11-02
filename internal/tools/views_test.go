@@ -80,7 +80,7 @@ func TestSearchAndPhenotypeViews(t *testing.T) {
 
 	pheno := tools.ToPhenotypeStrainListView(graphql.PhenotypeStrainList{
 		Strains:    []graphql.PhenotypeStrainItem{{ID: "DBS9"}},
-		NextCursor: 42, TotalCount: 1,
+		NextCursor: 42,
 	})
 	require.Equal(t, "https://dictycr.org/strains/DBS9", pheno.Strains[0].URL)
 	require.EqualValues(t, 42, pheno.NextCursor)

@@ -45,11 +45,12 @@ type (
 	}
 
 	// PhenotypeListParams holds validated inputs for ListStrainsWithPhenotype.
+	// PhenotypeTerm is the exact label of a Dicty Phenotypes ontology term.
 	PhenotypeListParams struct {
-		Ctx       context.Context
-		Phenotype string
-		Cursor    int
-		Limit     int
+		Ctx           context.Context
+		PhenotypeTerm string
+		Cursor        int
+		Limit         int
 	}
 
 	// GeneParams holds a validated gene name or DDB_G identifier.
@@ -247,11 +248,12 @@ type (
 		} `graphql:"strain(id: $id)" json:"strain"`
 	}
 
-	// PhenotypeStrainList holds the paginated response from listStrainsWithAnnotation.
+	// PhenotypeStrainList holds one page from listStrainsWithAnnotation.
+	// Strains holds unique strains. The upstream totalCount is not kept,
+	// because it follows the page size and is not a catalog total.
 	PhenotypeStrainList struct {
 		Strains    []PhenotypeStrainItem `json:"strains"`
 		NextCursor int64                 `json:"next_cursor"`
-		TotalCount int                   `json:"total_count"`
 	}
 
 	// listStockSuggestionsQuery is the GraphQL query structure for listStockSuggestions.
@@ -294,7 +296,6 @@ type (
 	// listStrainsWithPhenotypeQuery is the query structure for listStrainsWithAnnotation.
 	listStrainsWithPhenotypeQuery struct {
 		ListStrainsWithAnnotation struct {
-			TotalCount int                   `graphql:"totalCount"`
 			NextCursor int64                 `graphql:"nextCursor"`
 			Strains    []PhenotypeStrainItem `graphql:"strains"`
 		} `graphql:"listStrainsWithAnnotation(cursor: $cursor, limit: $limit, type: $type, annotation: $annotation)"`
@@ -434,15 +435,19 @@ func normalizePhenotypeStrainItem(item PhenotypeStrainItem) PhenotypeStrainItem 
 	return item
 }
 
+func phenotypeStrainID(item PhenotypeStrainItem) string { return item.ID }
+
+// toPhenotypeStrainList keeps the first row of each strain, because one
+// upstream page can repeat a strain. The order stays.
 func toPhenotypeStrainList(q *listStrainsWithPhenotypeQuery) PhenotypeStrainList {
 	return PhenotypeStrainList{
-		Strains: F.Pipe2(
+		Strains: F.Pipe3(
 			q.ListStrainsWithAnnotation.Strains,
+			A.Uniq(phenotypeStrainID),
 			A.Map(normalizePhenotypeStrainItem),
 			nonNilSlice[PhenotypeStrainItem],
 		),
 		NextCursor: q.ListStrainsWithAnnotation.NextCursor,
-		TotalCount: q.ListStrainsWithAnnotation.TotalCount,
 	}
 }
 
