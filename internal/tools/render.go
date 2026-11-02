@@ -213,7 +213,7 @@ func searchItem(h SearchHitView) ast.Node {
 	return listItem(
 		link(h.ID, h.URL),
 		text(fmt.Sprintf(" — %s · %s: %s · %s",
-			oneLine(h.StrainLabel), oneLine(h.Field), oneLine(h.DisplayText), availabilityLabel[h.InStock],
+			oneLine(h.StockLabel), oneLine(h.Field), oneLine(h.DisplayText), availabilityLabel[h.InStock],
 		)),
 	)
 }

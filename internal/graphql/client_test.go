@@ -84,7 +84,7 @@ func serveStockListStub(w http.ResponseWriter, req gqlRequest) {
 							"display_text": "act15:triA",
 							"score": 1011.4,
 							"summary": "triA null cells",
-							"strain_label": "triA-",
+							"stock_label": "triA-",
 							"in_stock": true
 						}
 					]

@@ -78,7 +78,7 @@ func hitID(h graphql.StockSearchHit) string { return h.ID }
 
 func hitLabel(h graphql.StockSearchHit) string {
 	return F.Pipe2(
-		h.StrainLabel,
+		h.StockLabel,
 		O.FromPredicate(S.IsNonEmpty),
 		O.GetOrElse(F.Constant(h.DisplayText)),
 	)

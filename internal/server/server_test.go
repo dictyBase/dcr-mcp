@@ -56,7 +56,7 @@ func newServerStubGraphQL(t *testing.T) *httptest.Server {
 							"display_text": "act15:triA",
 							"score": 1011.4,
 							"summary": "triA null",
-							"strain_label": "triA-",
+							"stock_label": "triA-",
 							"in_stock": true
 						}]
 					}
