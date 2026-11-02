@@ -72,13 +72,18 @@ func TestRenderSearchMarkdown(t *testing.T) {
 	md := tools.RenderSearchMarkdown(tools.ToSearchResultView(graphql.SearchResult{
 		Results: []graphql.StockSearchHit{{
 			ID: testShortStrainID, Entity: graphql.StockEntityStrain, Field: "SUMMARY",
-			DisplayText: "a | b", StockLabel: "x-", InStock: true,
+			DisplayText: "a | b", StockLabel: "x-", InStock: true, StockType: "regular",
+		}, {
+			ID: "DBS2", Entity: graphql.StockEntityStrain, Field: "SUMMARY",
+			DisplayText: "c", StockLabel: "y-", InStock: true, StockType: "gwdi",
 		}},
-		Limit: 15, TotalCount: 1,
+		Limit: 15, TotalCount: 2,
 	}))
-	require.Contains(t, md, "Showing 1 of 1 matches")
+	require.Contains(t, md, "Showing 2 of 2 matches")
 	require.Contains(t, md, "[DBS1](https://dictycr.org/strains/DBS1)")
 	require.Contains(t, md, `a \| b`)
+	require.Contains(t, md, "· gwdi")
+	require.NotContains(t, md, "· regular")
 
 	kinds := parseKinds(t, md)
 	require.NotZero(t, kinds[ast.KindListItem])

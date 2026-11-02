@@ -338,7 +338,8 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 						"score": 10,
 						"summary": "",
 						"stock_label": "",
-						"in_stock": true
+						"in_stock": true,
+						"stock_type": "regular"
 					}]
 				}
 			}
@@ -359,7 +360,8 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 							"score": 9,
 							"summary": "",
 							"stock_label": "",
-							"in_stock": true
+							"in_stock": true,
+							"stock_type": "regular"
 						},
 						{
 							"id": "DBS2",
@@ -369,7 +371,8 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 							"score": 8,
 							"summary": "",
 							"stock_label": "",
-							"in_stock": true
+							"in_stock": true,
+							"stock_type": "regular"
 						},
 						{
 							"id": "DBS3",
@@ -379,7 +382,8 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 							"score": 7,
 							"summary": "",
 							"stock_label": "",
-							"in_stock": true
+							"in_stock": true,
+							"stock_type": "regular"
 						},
 						{
 							"id": "DBS4",
@@ -389,7 +393,8 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 							"score": 6,
 							"summary": "",
 							"stock_label": "",
-							"in_stock": true
+							"in_stock": true,
+							"stock_type": "regular"
 						}
 					]
 				}
@@ -410,7 +415,8 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 							"score": 1011.4,
 							"summary": "triA null",
 							"stock_label": "triA-",
-							"in_stock": true
+							"in_stock": true,
+							"stock_type": "regular"
 						},
 						{
 							"id": "DBS0350840",
@@ -420,7 +426,8 @@ func serveToolsSearchStub(w http.ResponseWriter, req toolsStubRequest) {
 							"score": 900.0,
 							"summary": "triA null",
 							"stock_label": "triA-",
-							"in_stock": true
+							"in_stock": true,
+							"stock_type": "regular"
 						}
 					]
 				}

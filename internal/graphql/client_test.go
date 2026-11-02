@@ -85,7 +85,8 @@ func serveStockListStub(w http.ResponseWriter, req gqlRequest) {
 							"score": 1011.4,
 							"summary": "triA null cells",
 							"stock_label": "triA-",
-							"in_stock": true
+							"in_stock": true,
+							"stock_type": "regular"
 						}
 					]
 				}
@@ -291,6 +292,7 @@ func TestClientOperations(t *testing.T) {
 		require.Len(t, res.Results, 1)
 		require.Equal(t, "DBS0350840", res.Results[0].ID)
 		require.True(t, res.Results[0].InStock)
+		require.Equal(t, "regular", res.Results[0].StockType)
 	})
 
 	t.Run("GetStrain normalizes nil slices and returns strain detail", func(t *testing.T) {

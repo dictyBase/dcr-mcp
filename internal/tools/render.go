@@ -6,9 +6,12 @@ import (
 	"strings"
 
 	A "github.com/IBM/fp-go/v2/array"
+	EQ "github.com/IBM/fp-go/v2/eq"
 	F "github.com/IBM/fp-go/v2/function"
 	O "github.com/IBM/fp-go/v2/option"
+	P "github.com/IBM/fp-go/v2/predicate"
 	S "github.com/IBM/fp-go/v2/string"
+	predord "github.com/dictyBase/fp-go-loom/predicate/ord"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
 	"github.com/teekennedy/goldmark-markdown"
 	"github.com/yuin/goldmark"
@@ -16,10 +19,11 @@ import (
 )
 
 const (
-	yearLen         = 4
-	phenotypeHeader = "Phenotypes"
-	paperHeader     = "Publications"
-	noneRecorded    = "None recorded."
+	yearLen          = 4
+	phenotypeHeader  = "Phenotypes"
+	paperHeader      = "Publications"
+	noneRecorded     = "None recorded."
+	regularStockType = "regular"
 )
 
 var (
@@ -43,6 +47,12 @@ var (
 		"<", `\<`,
 		">", `\>`,
 		"|", `\|`,
+	)
+
+	// isSpecialStockType selects stock types worth a label: gwdi, goldenbraid.
+	isSpecialStockType = F.Pipe1(
+		S.IsNonEmpty,
+		P.And(F.Pipe2(regularStockType, EQ.Equals(predord.StringEq), P.Not[string])),
 	)
 )
 
@@ -209,11 +219,25 @@ func renderPlasmidMarkdown(v PlasmidView) string {
 	return renderNodes(append(intro, section(paperHeader, publicationItems(v.Publications))...))
 }
 
+func stockTypeLabel(stockType string) string {
+	return " · " + oneLine(stockType)
+}
+
+func stockTypeSuffix(stockType string) string {
+	return F.Pipe3(
+		stockType,
+		O.FromPredicate(isSpecialStockType),
+		O.Map(stockTypeLabel),
+		O.GetOrElse(F.Constant("")),
+	)
+}
+
 func searchItem(h SearchHitView) ast.Node {
 	return listItem(
 		link(h.ID, h.URL),
-		text(fmt.Sprintf(" — %s · %s: %s · %s",
-			oneLine(h.StockLabel), oneLine(h.Field), oneLine(h.DisplayText), availabilityLabel[h.InStock],
+		text(fmt.Sprintf(" — %s · %s: %s · %s%s",
+			oneLine(h.StockLabel), oneLine(h.Field), oneLine(h.DisplayText),
+			availabilityLabel[h.InStock], stockTypeSuffix(h.StockType),
 		)),
 	)
 }

@@ -116,6 +116,7 @@ type (
 		Summary     string          `graphql:"summary" json:"summary"`
 		StockLabel  string          `graphql:"stock_label" json:"stock_label"`
 		InStock     bool            `graphql:"in_stock" json:"in_stock"`
+		StockType   string          `graphql:"stock_type" json:"stock_type"`
 	}
 
 	// SearchResult holds the response from searchStocks.
