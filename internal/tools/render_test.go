@@ -64,7 +64,7 @@ func TestRenderStrainMarkdown(t *testing.T) {
 
 func TestRenderStrainMarkdownEmptySections(t *testing.T) {
 	md := F.Pipe2(graphql.StrainDetail{ID: testShortStrainID}, tools.StrainViewFor("summary"), tools.RenderStrainMarkdown)
-	require.Contains(t, md, "### Phenotypes\nNone recorded.")
+	require.Contains(t, md, "### Phenotypes\n\nNone recorded.")
 	require.Contains(t, md, "not in stock")
 	require.NotNil(t, parseKinds(t, md))
 }
@@ -110,4 +110,38 @@ func TestRenderEscapesUserText(t *testing.T) {
 	)
 	require.Contains(t, md, `a\*b\_\[c\]`)
 	require.Contains(t, md, `x \| y`)
+}
+
+func TestRenderSeparatesBlocksWithBlankLines(t *testing.T) {
+	md := F.Pipe2(
+		graphql.StrainDetail{ID: testShortStrainID, Label: "x-", Summary: "s"},
+		tools.StrainViewFor("summary"),
+		tools.RenderStrainMarkdown,
+	)
+	require.Contains(t, md, "## x- (DBS1)\n\ns\n\n- Availability:")
+	require.Contains(t, md, "\n\n### Phenotypes\n\n")
+}
+
+func TestRenderPublicationHasOneBullet(t *testing.T) {
+	md := F.Pipe2(
+		graphql.StrainDetail{ID: testShortStrainID, Publications: []graphql.PublicationRef{{
+			ID: "1", Title: "T", Journal: "J", PubDate: "2006-12-01T00:00:00Z",
+			Authors: []graphql.AuthorRef{{LastName: "Smith"}},
+		}}},
+		tools.StrainViewFor("summary"),
+		tools.RenderStrainMarkdown,
+	)
+	require.Contains(t, md, "\n- Smith. T J (2006). [PubMed]")
+	require.NotContains(t, md, "- - ")
+}
+
+func TestRenderEmptyFieldsUseDash(t *testing.T) {
+	md := F.Pipe2(
+		graphql.StrainDetail{ID: testShortStrainID},
+		tools.StrainViewFor("summary"),
+		tools.RenderStrainMarkdown,
+	)
+	require.Contains(t, md, "- Species: —")
+	require.Contains(t, md, "- Depositor: —")
+	require.NotContains(t, md, ": \n", "no trailing space after an empty field")
 }
