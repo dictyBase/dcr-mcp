@@ -15,6 +15,7 @@ import (
 	A "github.com/IBM/fp-go/v2/array"
 	F "github.com/IBM/fp-go/v2/function"
 	IOE "github.com/IBM/fp-go/v2/ioeither"
+	N "github.com/IBM/fp-go/v2/number/integer"
 	O "github.com/IBM/fp-go/v2/option"
 	P "github.com/IBM/fp-go/v2/predicate"
 	predarrays "github.com/dictyBase/fp-go-loom/predicate/array"
@@ -229,7 +230,7 @@ func serveListener(
 
 // ListenAndServe starts the HTTP server for cfg and shuts down when ctx is canceled.
 func ListenAndServe(ctx context.Context, cfg Config) IOE.IOEither[error, struct{}] {
-	addr := net.JoinHostPort(cfg.Host, strconv.Itoa(cfg.Port))
+	addr := net.JoinHostPort(cfg.Host, N.ToString(cfg.Port))
 	return F.Pipe2(
 		addr,
 		bindListener,
