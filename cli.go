@@ -2,13 +2,21 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
 	"strings"
+	"time"
 
 	E "github.com/IBM/fp-go/v2/either"
 	F "github.com/IBM/fp-go/v2/function"
 	IOE "github.com/IBM/fp-go/v2/ioeither"
+	N "github.com/IBM/fp-go/v2/number/integer"
 	L "github.com/IBM/fp-go/v2/optics/lens"
+	O "github.com/IBM/fp-go/v2/option"
 	ORD "github.com/IBM/fp-go/v2/ord"
+	P "github.com/IBM/fp-go/v2/predicate"
 	S "github.com/IBM/fp-go/v2/string"
 	eithererr "github.com/dictyBase/fp-go-loom/eithererr"
 	ioeutils "github.com/dictyBase/fp-go-loom/ioeitherutils"
@@ -25,9 +33,11 @@ type (
 	}
 
 	serverState struct {
-		ctx context.Context
-		cmd *cli.Command
-		cfg server.Config
+		ctx      context.Context
+		cmd      *cli.Command
+		cfg      server.Config
+		addr     string
+		listener net.Listener
 	}
 )
 
@@ -37,6 +47,8 @@ const (
 	defaultPort            = 8080
 	maxTCPPort             = 65535
 	defaultRateLimit       = 120
+	readHeaderTimeout      = 10 * time.Second
+	shutdownTimeout        = 5 * time.Second
 
 	appName        = "dcr-mcp"
 	startServerCmd = "start-server"
@@ -78,12 +90,30 @@ var (
 			return s
 		},
 	)
+	stateListenerLens = L.MakeLens(
+		func(s serverState) net.Listener { return s.listener },
+		func(s serverState, ln net.Listener) serverState {
+			s.listener = ln
+			return s
+		},
+	)
 
 	stateEndpointLens = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgEndpointLens))
 	statePortLens     = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgPortLens))
 	stateRateLens     = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgRateLimitLens))
 
 	isPositiveInt = F.Pipe1(1, ORD.Geq(predord.IntOrd))
+
+	isServerClosedErr = func(err error) bool {
+		return errors.Is(err, http.ErrServerClosed)
+	}
+	normalizeServeErr = F.Flow2(
+		O.FromPredicate(P.Not(isServerClosedErr)),
+		O.Fold(
+			func() error { return nil },
+			F.Identity[error],
+		),
+	)
 
 	errEmptyEndpoint = eithererr.ConstErr[string](
 		"graphql-endpoint must not be empty",
@@ -113,13 +143,16 @@ var (
 )
 
 func seedServerState(in ServerActionInput) serverState {
+	host := in.Command.String(flagHost)
+	port := in.Command.Int(flagPort)
 	return serverState{
-		ctx: in.Context,
-		cmd: in.Command,
+		ctx:  in.Context,
+		cmd:  in.Command,
+		addr: net.JoinHostPort(host, N.ToString(port)),
 		cfg: server.Config{
 			GraphQLEndpoint: in.Command.String(flagGraphQLEndpoint),
-			Host:            in.Command.String(flagHost),
-			Port:            in.Command.Int(flagPort),
+			Host:            host,
+			Port:            port,
 			Stateless:       in.Command.Bool(flagStateless),
 			AllowedOrigins:  in.Command.StringSlice(flagAllowedOrigins),
 			RateLimit:       in.Command.Int(flagRateLimit),
@@ -127,16 +160,55 @@ func seedServerState(in ServerActionInput) serverState {
 	}
 }
 
+func bindServerListener(s serverState) IOE.IOEither[error, net.Listener] {
+	return F.Pipe1(
+		IOE.TryCatchError(func() (net.Listener, error) {
+			return net.Listen("tcp", s.addr)
+		}),
+		IOE.MapLeft[net.Listener](func(err error) error {
+			return fmt.Errorf("listen on %s failed: %w", s.addr, err)
+		}),
+	)
+}
+
+func serveHTTP(s serverState) IOE.IOEither[error, struct{}] {
+	return F.Pipe1(
+		IOE.TryCatchError(func() (struct{}, error) {
+			srv := &http.Server{
+				Handler:           server.NewHTTPHandler(s.cfg),
+				ReadHeaderTimeout: readHeaderTimeout,
+			}
+			errCh := make(chan error, 1)
+			go func() {
+				rawErr := srv.Serve(s.listener)
+				errCh <- normalizeServeErr(rawErr)
+			}()
+
+			select {
+			case err := <-errCh:
+				return struct{}{}, err
+			case <-s.ctx.Done():
+				shutCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+				defer cancel()
+				_ = srv.Shutdown(shutCtx)
+				return struct{}{}, <-errCh
+			}
+		}),
+		IOE.MapLeft[struct{}](func(err error) error {
+			return fmt.Errorf("http server error: %w", err)
+		}),
+	)
+}
+
 // RunServer validates CLI flags and runs the Streamable HTTP MCP server.
 func RunServer(ctx context.Context, cmd *cli.Command) error {
-	return F.Pipe6(
+	return F.Pipe7(
 		ServerActionInput{Context: ctx, Command: cmd},
 		seedServerState,
 		IOE.Of[error, serverState],
 		IOE.ChainEitherK(validateServerState),
-		IOE.Chain(func(s serverState) IOE.IOEither[error, struct{}] {
-			return server.ListenAndServe(s.ctx, s.cfg)
-		}),
+		IOE.Bind(stateListenerLens.Set, bindServerListener),
+		IOE.Chain(serveHTTP),
 		ioeutils.ToEither[error, struct{}],
 		E.ToError[struct{}],
 	)

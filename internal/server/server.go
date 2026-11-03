@@ -2,20 +2,13 @@
 package server
 
 import (
-	"context"
-	"errors"
-	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	A "github.com/IBM/fp-go/v2/array"
 	F "github.com/IBM/fp-go/v2/function"
-	IOE "github.com/IBM/fp-go/v2/ioeither"
-	N "github.com/IBM/fp-go/v2/number/integer"
 	O "github.com/IBM/fp-go/v2/option"
 	P "github.com/IBM/fp-go/v2/predicate"
 	predarrays "github.com/dictyBase/fp-go-loom/predicate/array"
@@ -46,8 +39,6 @@ const (
 	wildcardOrigin    = "*"
 	healthzBody       = `{"status":"ok"}`
 	corsMaxAgeSeconds = 300
-	readHeaderTimeout = 10 * time.Second
-	shutdownTimeout   = 5 * time.Second
 	defaultRateLimit  = 120
 	rateLimitWindow   = time.Minute
 
@@ -63,10 +54,6 @@ const (
 		"use get_publication to read a paper cited on a record. " +
 		"Always cite stocks with the url field from results. The catalog cannot be modified through this server."
 )
-
-var isServerClosedErr = func(err error) bool {
-	return errors.Is(err, http.ErrServerClosed)
-}
 
 // NewMCPServer creates an mcp.Server registered with all dictyBase stock tools.
 func NewMCPServer(client *graphql.Client) *mcp.Server {
@@ -171,71 +158,4 @@ func NewHTTPHandler(cfg Config) http.Handler {
 	router.Get("/healthz", healthzHandler)
 	router.With(rateLimiter).Handle("/mcp", streamHandler)
 	return router
-}
-
-func normalizeServeErr(err error) error {
-	return F.Pipe2(
-		err,
-		O.FromPredicate(P.Not(isServerClosedErr)),
-		O.Fold(
-			func() error { return nil },
-			F.Identity[error],
-		),
-	)
-}
-
-func bindListener(addr string) IOE.IOEither[error, net.Listener] {
-	return F.Pipe1(
-		IOE.TryCatchError(func() (net.Listener, error) {
-			return net.Listen("tcp", addr)
-		}),
-		IOE.MapLeft[net.Listener](func(err error) error {
-			return fmt.Errorf("listen on %s failed: %w", addr, err)
-		}),
-	)
-}
-
-func serveListener(
-	ctx context.Context,
-	cfg Config,
-	ln net.Listener,
-) IOE.IOEither[error, struct{}] {
-	return F.Pipe1(
-		IOE.TryCatchError(func() (struct{}, error) {
-			srv := &http.Server{
-				Handler:           NewHTTPHandler(cfg),
-				ReadHeaderTimeout: readHeaderTimeout,
-			}
-			errCh := make(chan error, 1)
-			go func() {
-				rawErr := srv.Serve(ln)
-				errCh <- normalizeServeErr(rawErr)
-			}()
-
-			select {
-			case err := <-errCh:
-				return struct{}{}, err
-			case <-ctx.Done():
-				shutCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-				defer cancel()
-				_ = srv.Shutdown(shutCtx)
-				return struct{}{}, <-errCh
-			}
-		}),
-		IOE.MapLeft[struct{}](func(err error) error {
-			return fmt.Errorf("http server error: %w", err)
-		}),
-	)
-}
-
-// ListenAndServe starts the HTTP server for cfg and shuts down when ctx is canceled.
-func ListenAndServe(ctx context.Context, cfg Config) IOE.IOEither[error, struct{}] {
-	addr := net.JoinHostPort(cfg.Host, N.ToString(cfg.Port))
-	return F.Pipe2(
-		addr,
-		bindListener,
-		IOE.Chain(func(ln net.Listener) IOE.IOEither[error, struct{}] {
-			return serveListener(ctx, cfg, ln)
-		}),
-	)
 }
