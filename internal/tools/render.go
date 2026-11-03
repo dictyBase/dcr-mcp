@@ -8,11 +8,11 @@ import (
 	A "github.com/IBM/fp-go/v2/array"
 	E "github.com/IBM/fp-go/v2/either"
 	F "github.com/IBM/fp-go/v2/function"
-	M "github.com/IBM/fp-go/v2/monoid"
 	O "github.com/IBM/fp-go/v2/option"
 	P "github.com/IBM/fp-go/v2/predicate"
 	S "github.com/IBM/fp-go/v2/string"
 	predarrays "github.com/dictyBase/fp-go-loom/predicate/array"
+	"github.com/dictyBase/fp-go-loom/strutils"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
 	"github.com/dictybase/dcr-mcp/internal/mdfp"
 	md "github.com/nao1215/markdown"
@@ -62,26 +62,11 @@ var (
 		"|", `\|`,
 	)
 
-	// String monoids and semigroups for every separator in the output. An
-	// intersperse monoid skips an empty operand, so an optional part (a
-	// missing DOI, a regular stock type) drops out together with its
-	// separator, with no branch.
-	spaced     = S.IntersperseMonoid(" ")
-	dotted     = S.IntersperseMonoid(" · ")
-	commaSep   = S.IntersperseMonoid(", ")
-	semicolons = S.IntersperseMonoid("; ")
-	colonTight = S.IntersperseMonoid(":")
-	labeled    = S.IntersperseSemigroup(": ")
-	dashed     = S.IntersperseSemigroup(" — ")
-
-	joinSpaced = M.ConcatAll(spaced)
-	joinDotted = M.ConcatAll(dotted)
-	joinComma  = M.ConcatAll(commaSep)
-	joinSemi   = M.ConcatAll(semicolons)
-
 	// oneLine escapes text and collapses whitespace so a record field cannot
-	// break the surrounding block.
-	oneLine = F.Flow3(strings.Fields, joinSpaced, markdownEscaper.Replace)
+	// break the surrounding block. Every separator below is a strutils
+	// monoid: an empty operand drops out with its separator, so an optional
+	// part (a missing DOI, a regular stock type) needs no branch.
+	oneLine = F.Flow2(strutils.CollapseWhitespace, markdownEscaper.Replace)
 
 	// valueOrDash renders a field, or a dash when the field is empty.
 	valueOrDash = F.Flow3(
@@ -89,9 +74,6 @@ var (
 		O.Map(oneLine),
 		O.GetOrElse(F.Constant(noValue)),
 	)
-
-	parens  = F.Flow2(S.Prepend("("), S.Append(")"))
-	periods = S.Append(".")
 
 	hasItems = predarrays.IsNonEmpty[string]()
 
@@ -109,11 +91,7 @@ var (
 	)
 
 	// doiLink is a DOI link, or empty when the publication has no DOI.
-	doiLink = F.Flow3(
-		O.FromPredicate(S.IsNonEmpty),
-		O.Map(F.Flow2(DOIURL, F.Bind1st(md.Link, "DOI"))),
-		O.GetOrElse(F.Constant(S.Monoid.Empty())),
-	)
+	doiLink = strutils.MapNonEmpty(F.Flow2(DOIURL, F.Bind1st(md.Link, "DOI")))
 
 	sequenceText = S.Format[int]("%d bp (call get_plasmid_sequence)")
 
@@ -133,7 +111,7 @@ var (
 		E.GetOrElse(F.Constant1[error](S.Monoid.Empty())),
 	)
 
-	authorNames    = F.Pipe1(F.Flow2(authorLastName, oneLine), A.FoldMap[graphql.AuthorRef](commaSep))
+	authorNames    = F.Pipe1(F.Flow2(authorLastName, oneLine), A.FoldMap[graphql.AuthorRef](strutils.Comma))
 	phenotypeItems = A.Map(phenotypeItem)
 	paperItems     = A.Map(publicationItem)
 	hitItems       = A.Map(searchItem)
@@ -161,20 +139,20 @@ func authorLastName(a graphql.AuthorRef) string { return a.LastName }
 
 // heading is "label (id)". An empty label drops out with its space.
 func heading(label, id string) mdfp.Block {
-	return mdfp.H2(spaced.Concat(oneLine(label), F.Pipe2(id, oneLine, parens)))
+	return mdfp.H2(strutils.Space.Concat(oneLine(label), F.Pipe2(id, oneLine, strutils.Parens)))
 }
 
 func fullName(d graphql.Depositor) string {
-	return F.Pipe1(spaced.Concat(d.FirstName, d.LastName), valueOrDash)
+	return F.Pipe1(strutils.Space.Concat(d.FirstName, d.LastName), valueOrDash)
 }
 
 func publicationItem(p graphql.PublicationRef) string {
-	return joinSpaced([]string{
-		F.Pipe2(p.Authors, authorNames, periods),
+	return strutils.JoinSpace([]string{
+		F.Pipe2(p.Authors, authorNames, strutils.Period),
 		oneLine(p.Title),
 		oneLine(p.Journal),
-		F.Pipe3(p.PubDate, year, parens, periods),
-		dotted.Concat(md.Link("PubMed", PubMedURL(p.ID)), doiLink(p.DOI)),
+		F.Pipe3(p.PubDate, year, strutils.Parens, strutils.Period),
+		strutils.MiddleDot.Concat(md.Link("PubMed", PubMedURL(p.ID)), doiLink(p.DOI)),
 	})
 }
 
@@ -182,22 +160,22 @@ func publicationItem(p graphql.PublicationRef) string {
 // the phenotype term (not the environment or the assay) into
 // list_strains_with_phenotype.
 func phenotypeItem(p graphql.PhenotypeItem) string {
-	parts := joinDotted([]string{
-		labeled.Concat("Phenotype term", valueOrDash(p.Phenotype)),
-		labeled.Concat("environment", valueOrDash(p.Environment)),
-		labeled.Concat("assay", valueOrDash(p.Assay)),
+	parts := strutils.JoinMiddleDot([]string{
+		strutils.Label.Concat("Phenotype term", valueOrDash(p.Phenotype)),
+		strutils.Label.Concat("environment", valueOrDash(p.Environment)),
+		strutils.Label.Concat("assay", valueOrDash(p.Assay)),
 	})
-	pubmed := md.Link(spaced.Concat("PubMed", oneLine(p.Publication.ID)), PubMedURL(p.Publication.ID))
-	return dashed.Concat(parts, pubmed)
+	pubmed := md.Link(strutils.Space.Concat("PubMed", oneLine(p.Publication.ID)), PubMedURL(p.Publication.ID))
+	return strutils.EmDash.Concat(parts, pubmed)
 }
 
 func strainSummaryItems(v StrainView) []string {
 	return []string{
-		labeled.Concat("Availability", availabilityLabel[v.InStock]),
-		labeled.Concat("Species", valueOrDash(v.Species)),
-		labeled.Concat("Genotype", F.Pipe2(v.Genotypes, joinSemi, valueOrDash)),
-		labeled.Concat("Depositor", fullName(v.Depositor)),
-		labeled.Concat("Stock page", md.Link(v.ID, v.URL)),
+		strutils.Label.Concat("Availability", availabilityLabel[v.InStock]),
+		strutils.Label.Concat("Species", valueOrDash(v.Species)),
+		strutils.Label.Concat("Genotype", F.Pipe2(v.Genotypes, strutils.JoinSemicolon, valueOrDash)),
+		strutils.Label.Concat("Depositor", fullName(v.Depositor)),
+		strutils.Label.Concat("Stock page", md.Link(v.ID, v.URL)),
 	}
 }
 
@@ -217,12 +195,12 @@ func strainDoc(v StrainView) mdfp.Block {
 
 func plasmidSummaryItems(v PlasmidView) []string {
 	return []string{
-		labeled.Concat("Availability", availabilityLabel[v.InStock]),
-		labeled.Concat("Keywords", F.Pipe2(v.Keywords, joinComma, valueOrDash)),
-		labeled.Concat("GenBank", valueOrDash(v.GenbankAccession)),
-		labeled.Concat("Sequence", sequenceText(v.SequenceLength)),
-		labeled.Concat("Depositor", fullName(v.Depositor)),
-		labeled.Concat("Stock page", md.Link(v.ID, v.URL)),
+		strutils.Label.Concat("Availability", availabilityLabel[v.InStock]),
+		strutils.Label.Concat("Keywords", F.Pipe2(v.Keywords, strutils.JoinComma, valueOrDash)),
+		strutils.Label.Concat("GenBank", valueOrDash(v.GenbankAccession)),
+		strutils.Label.Concat("Sequence", sequenceText(v.SequenceLength)),
+		strutils.Label.Concat("Depositor", fullName(v.Depositor)),
+		strutils.Label.Concat("Stock page", md.Link(v.ID, v.URL)),
 	}
 }
 
@@ -236,18 +214,18 @@ func plasmidDoc(v PlasmidView) mdfp.Block {
 }
 
 func searchItem(h SearchHitView) string {
-	return dashed.Concat(md.Link(h.ID, h.URL), joinDotted([]string{
+	return strutils.EmDash.Concat(md.Link(h.ID, h.URL), strutils.JoinMiddleDot([]string{
 		oneLine(h.StockLabel),
-		labeled.Concat(oneLine(h.Field), oneLine(h.DisplayText)),
+		strutils.Label.Concat(oneLine(h.Field), oneLine(h.DisplayText)),
 		availabilityLabel[h.InStock],
 		stockTypeTag(h.StockType),
 	}))
 }
 
 func matchedTextItem(m MatchedTextView) string {
-	return dashed.Concat(
-		spaced.Concat(oneLine(m.DisplayText), F.Pipe2(m.Field, oneLine, parens)),
-		spaced.Concat(strconv.Itoa(m.StrainCount), strainNoun[m.StrainCount == 1]),
+	return strutils.EmDash.Concat(
+		strutils.Space.Concat(oneLine(m.DisplayText), F.Pipe2(m.Field, oneLine, strutils.Parens)),
+		strutils.Space.Concat(strconv.Itoa(m.StrainCount), strainNoun[m.StrainCount == 1]),
 	)
 }
 
@@ -270,9 +248,9 @@ func phenotypeSearchDoc(v PhenotypeSearchView) mdfp.Block {
 }
 
 func phenotypeStrainItem(s PhenotypeStrainView) string {
-	return dashed.Concat(
+	return strutils.EmDash.Concat(
 		md.Link(s.ID, s.URL),
-		dotted.Concat(oneLine(s.Label), availabilityLabel[s.InStock]),
+		strutils.MiddleDot.Concat(oneLine(s.Label), availabilityLabel[s.InStock]),
 	)
 }
 
