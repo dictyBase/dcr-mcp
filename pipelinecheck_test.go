@@ -24,4 +24,7 @@ func TestPipelineStyle(t *testing.T) {
 	pipelinecheck.RequireSafePrintf(t, cfg)
 	pipelinecheck.RequireNoRedundantFold(t, cfg)
 	pipelinecheck.RequireNoHandRolledFileJoinInArrayMap(t, cfg)
+	pipelinecheck.RequireNoImperativeLoop(t, cfg)
+	pipelinecheck.RequireNoImperativeBranch(t, cfg)
+	pipelinecheck.RequireNoDirectApply(t, cfg)
 }

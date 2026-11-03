@@ -8,8 +8,8 @@ github.com/clipperhouse/uax29/v2 v2.7.0 h1:+gs4oBZ2gPfVrKPthwbMzWZDaAFPGYK72F0NJ
 github.com/clipperhouse/uax29/v2 v2.7.0/go.mod h1:EFJ2TJMRUaplDxHKj1qAEhCtQPW2tJSwu5BF98AuoVM=
 github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9g=
 github.com/coder/websocket v1.8.14/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
-github.com/dictyBase/fp-go-loom v0.2.0 h1:z4hYGiDtO1mZ6Wym5TubeeBYQ3Ne5idhw2LWoPvJSWk=
-github.com/dictyBase/fp-go-loom v0.2.0/go.mod h1:4qGJYnGGFjg2hiG7ZyjcHK8qu4CZOloICFSNnb5W5sg=
+github.com/dictyBase/fp-go-loom v0.3.0 h1:9zeDui8f7wby1/OJ0+Cw2VcQH27eqFP3Cz+FNFND0Ro=
+github.com/dictyBase/fp-go-loom v0.3.0/go.mod h1:OJAl1gwqY0wJPp68ED2DeMQ8GLCeI34BM9FcQdxL5V0=
 github.com/fatih/color v1.19.0 h1:Zp3PiM21/9Ld6FzSKyL5c/BULoe/ONr9KlbYVOfG8+w=
 github.com/fatih/color v1.19.0/go.mod h1:zNk67I0ZUT1bEGsSGyCZYZNrHuTkJJB+r6Q9VuMi0LE=
 github.com/go-chi/chi/v5 v5.5.0 h1:xdKQ1dJmVJsmgahrXSKhUx8NyVPzpwdlyrrQFpMPJgg=
