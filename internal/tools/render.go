@@ -6,11 +6,13 @@ import (
 	"strings"
 
 	A "github.com/IBM/fp-go/v2/array"
+	E "github.com/IBM/fp-go/v2/either"
 	EQ "github.com/IBM/fp-go/v2/eq"
 	F "github.com/IBM/fp-go/v2/function"
 	O "github.com/IBM/fp-go/v2/option"
 	P "github.com/IBM/fp-go/v2/predicate"
 	S "github.com/IBM/fp-go/v2/string"
+	predarrays "github.com/dictyBase/fp-go-loom/predicate/array"
 	predord "github.com/dictyBase/fp-go-loom/predicate/ord"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
 	"github.com/teekennedy/goldmark-markdown"
@@ -64,6 +66,8 @@ var (
 		"|", `\|`,
 	)
 
+	hasNodes = predarrays.IsNonEmpty[ast.Node]()
+
 	// isSpecialStockType selects stock types worth a label: gwdi, goldenbraid.
 	isSpecialStockType = F.Pipe1(
 		S.IsNonEmpty,
@@ -83,12 +87,18 @@ func heading(level int, text string) ast.Node {
 	return h
 }
 
-func paragraph(parts ...ast.Node) ast.Node {
-	p := ast.NewParagraph()
-	for _, part := range parts {
-		p.AppendChild(p, part)
+// withChildren appends kids to parent and returns parent.
+//
+// fp-go:allow-loop goldmark nodes are mutable and AppendChild is the only API
+func withChildren(parent ast.Node, kids []ast.Node) ast.Node {
+	for _, kid := range kids {
+		parent.AppendChild(parent, kid)
 	}
-	return p
+	return parent
+}
+
+func paragraph(parts ...ast.Node) ast.Node {
+	return withChildren(ast.NewParagraph(), parts)
 }
 
 func text(s string) ast.Node {
@@ -103,50 +113,62 @@ func link(label, dest string) ast.Node {
 }
 
 func listItem(parts ...ast.Node) ast.Node {
-	item := ast.NewListItem(0)
-	block := ast.NewTextBlock()
-	for _, part := range parts {
-		block.AppendChild(block, part)
-	}
-	item.AppendChild(item, block)
-	return item
+	block := withChildren(ast.NewTextBlock(), parts)
+	return withChildren(ast.NewListItem(0), []ast.Node{block})
 }
 
 func bulletList(items []ast.Node) ast.Node {
-	list := ast.NewList('-')
-	for _, item := range items {
-		list.AppendChild(list, item)
-	}
-	return list
+	return withChildren(ast.NewList('-'), items)
 }
 
+// renderNodes renders nodes as Markdown. A render error gives an empty string.
 func renderNodes(nodes []ast.Node) string {
-	doc := ast.NewDocument()
-	for _, node := range nodes {
-		doc.AppendChild(doc, node)
-	}
-	var buf bytes.Buffer
-	if err := markdownRenderer.Renderer().Render(&buf, nil, doc); err != nil {
-		return ""
-	}
-	return buf.String()
+	doc := withChildren(ast.NewDocument(), nodes)
+	buf := new(bytes.Buffer)
+	rendered := E.TryCatchError(
+		buf,
+		markdownRenderer.Renderer().Render(buf, nil, doc),
+	)
+	return F.Pipe2(
+		rendered,
+		E.Map[error]((*bytes.Buffer).String),
+		E.GetOrElse(F.Constant1[error]("")),
+	)
+}
+
+// noneRecordedNode builds a fresh paragraph, because goldmark nodes are
+// mutable and must not be shared between documents.
+func noneRecordedNode() ast.Node {
+	return paragraph(text(noneRecorded))
+}
+
+// listOrNone renders items as a bullet list, or a "None recorded." paragraph.
+func listOrNone(items []ast.Node) ast.Node {
+	return F.Pipe3(
+		items,
+		O.FromPredicate(hasNodes),
+		O.Map(bulletList),
+		O.GetOrElse(noneRecordedNode),
+	)
 }
 
 // section renders a heading plus its items, or a "None recorded." paragraph.
 func section(title string, items []ast.Node) []ast.Node {
-	if len(items) == 0 {
-		return []ast.Node{heading(3, title), paragraph(text(noneRecorded))}
-	}
-	return []ast.Node{heading(3, title), bulletList(items)}
+	return []ast.Node{heading(3, title), listOrNone(items)}
 }
 
 func year(pubDate string) string {
 	return pubDate[:min(len(pubDate), yearLen)]
 }
 
+func authorName(a graphql.AuthorRef) string { return oneLine(a.LastName) }
+
 func authorNames(authors []graphql.AuthorRef) string {
-	names := A.Map(func(a graphql.AuthorRef) string { return oneLine(a.LastName) })(authors)
-	return strings.Join(names, ", ")
+	return F.Pipe2(
+		authors,
+		A.Map(authorName),
+		F.Bind2nd(strings.Join, ", "),
+	)
 }
 
 func doiSuffix(doi string) []ast.Node {
@@ -195,7 +217,7 @@ func phenotypeItem(p graphql.PhenotypeItem) ast.Node {
 }
 
 func publicationItems(publications []graphql.PublicationRef) []ast.Node {
-	return A.Map(publicationItem)(publications)
+	return F.Pipe1(publications, A.Map(publicationItem))
 }
 
 func strainSummaryItems(v StrainView) []ast.Node {
@@ -223,7 +245,7 @@ func renderStrainMarkdown(v StrainView) string {
 	)))
 	nodes := make([]ast.Node, 0, len(intro)+16)
 	nodes = append(nodes, intro...)
-	nodes = append(nodes, section(phenotypeHeader, A.Map(phenotypeItem)(v.Phenotypes))...)
+	nodes = append(nodes, section(phenotypeHeader, F.Pipe1(v.Phenotypes, A.Map(phenotypeItem)))...)
 	nodes = append(nodes, section(paperHeader, publicationItems(v.Publications))...)
 	nodes = append(nodes, footer)
 	return renderNodes(nodes)
@@ -305,8 +327,6 @@ func renderPhenotypeStrainListMarkdown(v PhenotypeStrainListView) string {
 
 func renderSearchMarkdown(v SearchResultView) string {
 	intro := paragraph(text(fmt.Sprintf("Showing %d of %d matches.", len(v.Results), v.TotalCount)))
-	if len(v.Results) == 0 {
-		return renderNodes([]ast.Node{intro, paragraph(text(noneRecorded))})
-	}
-	return renderNodes([]ast.Node{intro, bulletList(A.Map(searchItem)(v.Results))})
+	hits := listOrNone(F.Pipe1(v.Results, A.Map(searchItem)))
+	return renderNodes([]ast.Node{intro, hits})
 }
