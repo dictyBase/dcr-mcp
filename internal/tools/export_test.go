@@ -10,6 +10,7 @@ var (
 	RenderStrainMarkdown              = renderStrainMarkdown
 	RenderPlasmidMarkdown             = renderPlasmidMarkdown
 	RenderSearchMarkdown              = renderSearchMarkdown
+	RenderPublicationMarkdown         = renderPublicationMarkdown
 	RenderPhenotypeSearchMarkdown     = renderPhenotypeSearchMarkdown
 	RenderPhenotypeStrainListMarkdown = renderPhenotypeStrainListMarkdown
 )

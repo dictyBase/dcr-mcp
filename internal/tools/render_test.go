@@ -12,6 +12,8 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
+const testAuthorSmith = "Smith"
+
 // parseKinds parses rendered Markdown so a broken document fails the test
 // instead of reaching a client.
 func parseKinds(t *testing.T, md string) map[ast.NodeKind]int {
@@ -39,7 +41,7 @@ func TestRenderStrainMarkdown(t *testing.T) {
 		Publications: []graphql.PublicationRef{{
 			ID: "17177856", Title: "A paper", Journal: "Differentiation",
 			PubDate: "2006-12-01T00:00:00Z", DOI: "10.1111/x",
-			Authors: []graphql.AuthorRef{{LastName: "Smith"}, {LastName: "Jones"}},
+			Authors: []graphql.AuthorRef{{LastName: testAuthorSmith}, {LastName: "Jones"}},
 		}},
 	}
 	md := F.Pipe2(detail, tools.StrainViewFor("summary"), tools.RenderStrainMarkdown)
@@ -126,7 +128,7 @@ func TestRenderPublicationHasOneBullet(t *testing.T) {
 	md := F.Pipe2(
 		graphql.StrainDetail{ID: testShortStrainID, Publications: []graphql.PublicationRef{{
 			ID: "1", Title: "T", Journal: "J", PubDate: "2006-12-01T00:00:00Z",
-			Authors: []graphql.AuthorRef{{LastName: "Smith"}},
+			Authors: []graphql.AuthorRef{{LastName: testAuthorSmith}},
 		}}},
 		tools.StrainViewFor("summary"),
 		tools.RenderStrainMarkdown,
@@ -144,4 +146,26 @@ func TestRenderEmptyFieldsUseDash(t *testing.T) {
 	require.Contains(t, md, "- Species: —")
 	require.Contains(t, md, "- Depositor: —")
 	require.NotContains(t, md, ": \n", "no trailing space after an empty field")
+}
+
+func TestRenderEmptyLabelHasNoDoubleSpace(t *testing.T) {
+	md := F.Pipe2(
+		graphql.StrainDetail{ID: testShortStrainID},
+		tools.StrainViewFor("summary"),
+		tools.RenderStrainMarkdown,
+	)
+	require.Contains(t, md, "## (DBS1)\n")
+}
+
+func TestRenderPublicationWithoutDOIDropsSeparator(t *testing.T) {
+	md := F.Pipe2(
+		graphql.StrainDetail{ID: testShortStrainID, Publications: []graphql.PublicationRef{{
+			ID: "2", Title: "T", Journal: "J", PubDate: "2001",
+			Authors: []graphql.AuthorRef{{LastName: "Lee"}, {LastName: ""}},
+		}}},
+		tools.StrainViewFor("summary"),
+		tools.RenderStrainMarkdown,
+	)
+	require.Contains(t, md, "- Lee. T J (2001). [PubMed](https://pubmed.ncbi.nlm.nih.gov/2/)\n")
+	require.NotContains(t, md, "Lee, .")
 }
