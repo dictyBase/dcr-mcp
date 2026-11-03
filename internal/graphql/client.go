@@ -287,10 +287,9 @@ func (c *Client) SearchStocks(
 	)
 }
 
-func (c *Client) getStrainUncached(
-	params IDParams,
-) IOE.IOEither[error, StrainDetail] {
-	return F.Pipe2(
+// GetStrain executes the strain(id: $id) GraphQL query, served from cache when fresh.
+func (c *Client) GetStrain(params IDParams) IOE.IOEither[error, StrainDetail] {
+	load := F.Pipe2(
 		IOE.TryCatchError(func() (*getStrainQuery, error) {
 			query := new(getStrainQuery)
 			return query, c.gql.Query(params.Ctx, query, map[string]any{
@@ -302,17 +301,12 @@ func (c *Client) getStrainUncached(
 		}),
 		IOE.Map[error](toStrainDetail),
 	)
+	return cached(c.strainCache, params.ID, load)
 }
 
-// GetStrain executes the strain(id: $id) GraphQL query, served from cache when fresh.
-func (c *Client) GetStrain(params IDParams) IOE.IOEither[error, StrainDetail] {
-	return cached(c.strainCache, params.ID, c.getStrainUncached(params))
-}
-
-func (c *Client) getPlasmidUncached(
-	params IDParams,
-) IOE.IOEither[error, PlasmidDetail] {
-	return F.Pipe2(
+// GetPlasmid executes the plasmid(id: $id) GraphQL query, served from cache when fresh.
+func (c *Client) GetPlasmid(params IDParams) IOE.IOEither[error, PlasmidDetail] {
+	load := F.Pipe2(
 		IOE.TryCatchError(func() (*getPlasmidQuery, error) {
 			query := new(getPlasmidQuery)
 			return query, c.gql.Query(params.Ctx, query, map[string]any{
@@ -324,11 +318,7 @@ func (c *Client) getPlasmidUncached(
 		}),
 		IOE.Map[error](toPlasmidDetail),
 	)
-}
-
-// GetPlasmid executes the plasmid(id: $id) GraphQL query, served from cache when fresh.
-func (c *Client) GetPlasmid(params IDParams) IOE.IOEither[error, PlasmidDetail] {
-	return cached(c.plasmidCache, params.ID, c.getPlasmidUncached(params))
+	return cached(c.plasmidCache, params.ID, load)
 }
 
 // ListStrainsWithPhenotype executes listStrainsWithAnnotation with type "phenotype".

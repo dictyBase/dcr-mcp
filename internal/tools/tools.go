@@ -12,29 +12,32 @@ import (
 )
 
 var (
-	toAutocompleteState = F.Curry3(
-		func(
-			ctx context.Context,
-			client *graphql.Client,
-			in AutocompleteStocksInput,
-		) autocompleteState {
-			return autocompleteState{
-				ctx:    ctx,
-				client: client,
-				input:  in,
+	toAutocompleteParams = F.Curry2(
+		func(ctx context.Context, in AutocompleteStocksInput) graphql.AutocompleteParams {
+			return graphql.AutocompleteParams{
+				Ctx:    ctx,
+				Query:  in.Query,
+				Limit:  in.Limit,
+				Entity: graphql.StockEntityType(in.Entity),
 			}
 		},
 	)
-	toSearchState = F.Curry3(
-		func(
-			ctx context.Context,
-			client *graphql.Client,
-			in SearchStocksInput,
-		) searchState {
-			return searchState{
-				ctx:    ctx,
-				client: client,
-				input:  in,
+	toSearchParams = F.Curry2(
+		func(ctx context.Context, in SearchStocksInput) graphql.SearchParams {
+			return graphql.SearchParams{
+				Ctx:    ctx,
+				Query:  in.Query,
+				Limit:  in.Limit,
+				Entity: graphql.StockEntityType(in.Entity),
+			}
+		},
+	)
+	toPhenotypeSearchParams = F.Curry2(
+		func(ctx context.Context, in SearchPhenotypesInput) graphql.PhenotypeSearchParams {
+			return graphql.PhenotypeSearchParams{
+				Ctx:   ctx,
+				Query: in.Query,
+				Limit: in.Limit,
 			}
 		},
 	)
@@ -64,29 +67,13 @@ var (
 			}
 		},
 	)
-	toPhenotypeListState = F.Curry3(
-		func(
-			ctx context.Context,
-			client *graphql.Client,
-			in ListStrainsWithPhenotypeInput,
-		) phenotypeListState {
-			return phenotypeListState{
-				ctx:    ctx,
-				client: client,
-				input:  in,
-			}
-		},
-	)
-	toPhenotypeSearchState = F.Curry3(
-		func(
-			ctx context.Context,
-			client *graphql.Client,
-			in SearchPhenotypesInput,
-		) phenotypeSearchState {
-			return phenotypeSearchState{
-				ctx:    ctx,
-				client: client,
-				input:  in,
+	toPhenotypeListParams = F.Curry2(
+		func(ctx context.Context, in ListStrainsWithPhenotypeInput) graphql.PhenotypeListParams {
+			return graphql.PhenotypeListParams{
+				Ctx:           ctx,
+				PhenotypeTerm: in.PhenotypeTerm,
+				Cursor:        in.Cursor,
+				Limit:         in.Limit,
 			}
 		},
 	)
@@ -132,17 +119,6 @@ func toOutcomeWithMarkdown[Out any](
 	}
 }
 
-func executeAutocomplete(
-	s autocompleteState,
-) IOE.IOEither[error, graphql.AutocompleteResult] {
-	return s.client.ListStockSuggestions(graphql.AutocompleteParams{
-		Ctx:    s.ctx,
-		Query:  s.input.Query,
-		Limit:  s.input.Limit,
-		Entity: graphql.StockEntityType(s.input.Entity),
-	})
-}
-
 func newAutocompleteHandler(
 	client *graphql.Client,
 ) mcp.ToolHandlerFor[AutocompleteStocksInput, graphql.AutocompleteResult] {
@@ -151,12 +127,11 @@ func newAutocompleteHandler(
 		_ *mcp.CallToolRequest,
 		input AutocompleteStocksInput,
 	) (*mcp.CallToolResult, graphql.AutocompleteResult, error) {
-		buildState := F.Pipe1(client, toAutocompleteState(ctx))
 		out := F.Pipe5(
 			IOE.Of[error](input),
 			IOE.ChainEitherK(ValidateAutocompleteInput),
-			IOE.Map[error](buildState),
-			IOE.Chain(executeAutocomplete),
+			IOE.Map[error](toAutocompleteParams(ctx)),
+			IOE.Chain(client.ListStockSuggestions),
 			ioeutils.ToEither[error, graphql.AutocompleteResult],
 			E.Fold(
 				toOutcomeError[graphql.AutocompleteResult],
@@ -167,15 +142,6 @@ func newAutocompleteHandler(
 	}
 }
 
-func executeSearch(s searchState) IOE.IOEither[error, graphql.SearchResult] {
-	return s.client.SearchStocks(graphql.SearchParams{
-		Ctx:    s.ctx,
-		Query:  s.input.Query,
-		Limit:  s.input.Limit,
-		Entity: graphql.StockEntityType(s.input.Entity),
-	})
-}
-
 func newSearchHandler(
 	client *graphql.Client,
 ) mcp.ToolHandlerFor[SearchStocksInput, SearchResultView] {
@@ -184,12 +150,11 @@ func newSearchHandler(
 		_ *mcp.CallToolRequest,
 		input SearchStocksInput,
 	) (*mcp.CallToolResult, SearchResultView, error) {
-		buildState := F.Pipe1(client, toSearchState(ctx))
 		out := F.Pipe6(
 			IOE.Of[error](input),
 			IOE.ChainEitherK(ValidateSearchInput),
-			IOE.Map[error](buildState),
-			IOE.Chain(executeSearch),
+			IOE.Map[error](toSearchParams(ctx)),
+			IOE.Chain(client.SearchStocks),
 			IOE.Map[error](toSearchResultView),
 			ioeutils.ToEither[error, SearchResultView],
 			E.Fold(
@@ -201,16 +166,6 @@ func newSearchHandler(
 	}
 }
 
-func executeSearchPhenotypes(
-	s phenotypeSearchState,
-) IOE.IOEither[error, graphql.SearchResult] {
-	return s.client.SearchPhenotypes(graphql.PhenotypeSearchParams{
-		Ctx:   s.ctx,
-		Query: s.input.Query,
-		Limit: s.input.Limit,
-	})
-}
-
 func newSearchPhenotypesHandler(
 	client *graphql.Client,
 ) mcp.ToolHandlerFor[SearchPhenotypesInput, PhenotypeSearchView] {
@@ -219,12 +174,11 @@ func newSearchPhenotypesHandler(
 		_ *mcp.CallToolRequest,
 		input SearchPhenotypesInput,
 	) (*mcp.CallToolResult, PhenotypeSearchView, error) {
-		buildState := F.Pipe1(client, toPhenotypeSearchState(ctx))
 		out := F.Pipe6(
 			IOE.Of[error](input),
 			IOE.ChainEitherK(ValidateSearchPhenotypesInput),
-			IOE.Map[error](buildState),
-			IOE.Chain(executeSearchPhenotypes),
+			IOE.Map[error](toPhenotypeSearchParams(ctx)),
+			IOE.Chain(client.SearchPhenotypes),
 			IOE.Map[error](toPhenotypeSearchView),
 			ioeutils.ToEither[error, PhenotypeSearchView],
 			E.Fold(
@@ -310,17 +264,14 @@ func newGetPlasmidSequenceHandler(
 		_ *mcp.CallToolRequest,
 		input GetPlasmidSequenceInput,
 	) (*mcp.CallToolResult, PlasmidSequence, error) {
-		toSequence := F.Flow3(
-			executeGetPlasmid,
-			IOE.ChainEitherK(E.FromPredicate(hasSequence, errNoSequence)),
-			IOE.Map[error](toPlasmidSequence),
-		)
 		buildState := F.Pipe1(client, toPlasmidState(ctx))
-		out := F.Pipe5(
+		out := F.Pipe7(
 			IOE.Of[error](GetPlasmidInput{ID: input.ID, Detail: detailFull}),
 			IOE.ChainEitherK(ValidatePlasmidIDInput),
 			IOE.Map[error](buildState),
-			IOE.Chain(toSequence),
+			IOE.Chain(executeGetPlasmid),
+			IOE.ChainEitherK(E.FromPredicate(hasSequence, errNoSequence)),
+			IOE.Map[error](toPlasmidSequence),
 			ioeutils.ToEither[error, PlasmidSequence],
 			E.Fold(
 				toOutcomeError[PlasmidSequence],
@@ -331,21 +282,6 @@ func newGetPlasmidSequenceHandler(
 	}
 }
 
-// executeListPhenotypeStrains returns the view directly, because the view
-// echoes the normalized phenotype term from the state.
-func executeListPhenotypeStrains(
-	s phenotypeListState,
-) IOE.IOEither[error, PhenotypeStrainListView] {
-	query := s.client.ListStrainsWithPhenotype(graphql.PhenotypeListParams{
-		Ctx:           s.ctx,
-		PhenotypeTerm: s.input.PhenotypeTerm,
-		Cursor:        s.input.Cursor,
-		Limit:         s.input.Limit,
-	})
-	toView := F.Pipe1(s.input.PhenotypeTerm, toPhenotypeStrainListView)
-	return F.Pipe1(query, IOE.Map[error](toView))
-}
-
 func newListPhenotypeStrainsHandler(
 	client *graphql.Client,
 ) mcp.ToolHandlerFor[ListStrainsWithPhenotypeInput, PhenotypeStrainListView] {
@@ -354,12 +290,16 @@ func newListPhenotypeStrainsHandler(
 		_ *mcp.CallToolRequest,
 		input ListStrainsWithPhenotypeInput,
 	) (*mcp.CallToolResult, PhenotypeStrainListView, error) {
-		buildState := F.Pipe1(client, toPhenotypeListState(ctx))
 		out := F.Pipe5(
 			IOE.Of[error](input),
 			IOE.ChainEitherK(ValidatePhenotypeListInput),
-			IOE.Map[error](buildState),
-			IOE.Chain(executeListPhenotypeStrains),
+			IOE.Map[error](toPhenotypeListParams(ctx)),
+			IOE.Chain(func(p graphql.PhenotypeListParams) IOE.IOEither[error, PhenotypeStrainListView] {
+				return F.Pipe1(
+					client.ListStrainsWithPhenotype(p),
+					IOE.Map[error](toPhenotypeStrainListView(p.PhenotypeTerm)),
+				)
+			}),
 			ioeutils.ToEither[error, PhenotypeStrainListView],
 			E.Fold(
 				toOutcomeError[PhenotypeStrainListView],

@@ -39,16 +39,11 @@ var (
 
 	renderPublicationMarkdown = F.Flow2(publicationDoc, renderDoc)
 
-	toPublicationState = F.Curry3(
-		func(
-			ctx context.Context,
-			client *graphql.Client,
-			in GetPublicationInput,
-		) publicationState {
-			return publicationState{
-				ctx:    ctx,
-				client: client,
-				input:  in,
+	toPublicationParams = F.Curry2(
+		func(ctx context.Context, in GetPublicationInput) graphql.IDParams {
+			return graphql.IDParams{
+				Ctx: ctx,
+				ID:  in.ID,
 			}
 		},
 	)
@@ -86,13 +81,6 @@ func publicationDoc(v PublicationView) mdfp.Block {
 	})
 }
 
-func executeGetPublication(s publicationState) IOE.IOEither[error, graphql.PublicationDetail] {
-	return s.client.GetPublication(graphql.IDParams{
-		Ctx: s.ctx,
-		ID:  s.input.ID,
-	})
-}
-
 func newGetPublicationHandler(
 	client *graphql.Client,
 ) mcp.ToolHandlerFor[GetPublicationInput, PublicationView] {
@@ -101,12 +89,11 @@ func newGetPublicationHandler(
 		_ *mcp.CallToolRequest,
 		input GetPublicationInput,
 	) (*mcp.CallToolResult, PublicationView, error) {
-		buildState := F.Pipe1(client, toPublicationState(ctx))
 		out := F.Pipe6(
 			IOE.Of[error](input),
 			IOE.ChainEitherK(ValidatePublicationInput),
-			IOE.Map[error](buildState),
-			IOE.Chain(executeGetPublication),
+			IOE.Map[error](toPublicationParams(ctx)),
+			IOE.Chain(client.GetPublication),
 			IOE.Map[error](toPublicationView),
 			ioeutils.ToEither[error, PublicationView],
 			E.Fold(

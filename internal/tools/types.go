@@ -88,18 +88,6 @@ type (
 		Err    error
 	}
 
-	autocompleteState struct {
-		ctx    context.Context
-		client *graphql.Client
-		input  AutocompleteStocksInput
-	}
-
-	searchState struct {
-		ctx    context.Context
-		client *graphql.Client
-		input  SearchStocksInput
-	}
-
 	strainState struct {
 		ctx    context.Context
 		client *graphql.Client
@@ -110,18 +98,6 @@ type (
 		ctx    context.Context
 		client *graphql.Client
 		input  GetPlasmidInput
-	}
-
-	phenotypeListState struct {
-		ctx    context.Context
-		client *graphql.Client
-		input  ListStrainsWithPhenotypeInput
-	}
-
-	phenotypeSearchState struct {
-		ctx    context.Context
-		client *graphql.Client
-		input  SearchPhenotypesInput
 	}
 
 	fetchState struct {
@@ -137,18 +113,6 @@ type (
 		gene     graphql.GeneInfo
 		strains  []graphql.GeneStrainItem
 		plasmids graphql.SearchResult
-	}
-
-	availabilityState struct {
-		ctx    context.Context
-		client *graphql.Client
-		input  CheckAvailabilityInput
-	}
-
-	publicationState struct {
-		ctx    context.Context
-		client *graphql.Client
-		input  GetPublicationInput
 	}
 )
 

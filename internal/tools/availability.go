@@ -43,16 +43,12 @@ var (
 		strainIDPrefix:  strainAvailability,
 		plasmidIDPrefix: plasmidAvailability,
 	}
-	toAvailabilityState = F.Curry3(
-		func(
-			ctx context.Context,
-			client *graphql.Client,
-			in CheckAvailabilityInput,
-		) availabilityState {
-			return availabilityState{
+	toStockLookup = F.Curry3(
+		func(ctx context.Context, client *graphql.Client, id string) stockLookup {
+			return stockLookup{
 				ctx:    ctx,
 				client: client,
-				input:  in,
+				id:     id,
 			}
 		},
 	)
@@ -123,20 +119,13 @@ func newCheckAvailabilityHandler(
 		_ *mcp.CallToolRequest,
 		input CheckAvailabilityInput,
 	) (*mcp.CallToolResult, AvailabilityReport, error) {
-		buildState := F.Pipe1(client, toAvailabilityState(ctx))
-		out := F.Pipe5(
+		lookupID := F.Flow2(F.Pipe1(client, toStockLookup(ctx)), lookupAvailability)
+		out := F.Pipe6(
 			IOE.Of[error](input),
 			IOE.ChainEitherK(ValidateCheckAvailabilityInput),
-			IOE.Map[error](buildState),
-			IOE.Chain(func(s availabilityState) IOE.IOEither[error, AvailabilityReport] {
-				return F.Pipe2(
-					s.input.IDs,
-					IOE.TraverseArrayPar(func(id string) IOE.IOEither[error, AvailabilityItem] {
-						return lookupAvailability(stockLookup{ctx: s.ctx, client: s.client, id: id})
-					}),
-					IOE.Map[error](toAvailabilityReport),
-				)
-			}),
+			IOE.Map[error](availabilityIDsLens.Get),
+			IOE.Chain(IOE.TraverseArrayPar(lookupID)),
+			IOE.Map[error](toAvailabilityReport),
 			ioeutils.ToEither[error, AvailabilityReport],
 			E.Fold(
 				toOutcomeError[AvailabilityReport],

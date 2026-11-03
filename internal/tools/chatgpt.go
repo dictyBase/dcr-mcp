@@ -111,12 +111,11 @@ func newChatGPTSearchHandler(
 		_ *mcp.CallToolRequest,
 		input ChatGPTSearchInput,
 	) (*mcp.CallToolResult, SearchDocuments, error) {
-		buildState := F.Pipe1(client, toSearchState(ctx))
 		out := F.Pipe6(
 			IOE.Of[error](SearchStocksInput{Query: input.Query, Limit: chatgptSearchLimit}),
 			IOE.ChainEitherK(ValidateSearchInput),
-			IOE.Map[error](buildState),
-			IOE.Chain(executeSearch),
+			IOE.Map[error](toSearchParams(ctx)),
+			IOE.Chain(client.SearchStocks),
 			IOE.Map[error](toSearchDocuments),
 			ioeutils.ToEither[error, SearchDocuments],
 			E.Fold(
