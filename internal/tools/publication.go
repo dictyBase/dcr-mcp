@@ -7,8 +7,8 @@ import (
 	E "github.com/IBM/fp-go/v2/either"
 	F "github.com/IBM/fp-go/v2/function"
 	IOE "github.com/IBM/fp-go/v2/ioeither"
-	M "github.com/IBM/fp-go/v2/monoid"
 	ioeutils "github.com/dictyBase/fp-go-loom/ioeitherutils"
+	"github.com/dictyBase/fp-go-loom/strutils"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
 	"github.com/dictybase/dcr-mcp/internal/mdfp"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -25,15 +25,17 @@ type PublicationView struct {
 const abstractHeader = "Abstract"
 
 var (
-	// fullAuthorName is "LastName Initials". The space monoid, lifted to
-	// functions with M.FunctionMonoid, joins the two field projections. An
-	// empty part drops out with its space.
-	fullAuthorName = M.FunctionMonoid[graphql.FullAuthor](spaced).Concat(
-		F.Flow2(fullAuthorLastName, oneLine),
-		F.Flow2(fullAuthorInitials, oneLine),
+	// fullAuthorName is "LastName Initials". An empty part drops out with its
+	// space.
+	fullAuthorName = F.Pipe1(
+		[]func(graphql.FullAuthor) string{
+			F.Flow2(fullAuthorLastName, oneLine),
+			F.Flow2(fullAuthorInitials, oneLine),
+		},
+		strutils.ConcatFields[graphql.FullAuthor](strutils.Space),
 	)
 
-	fullAuthorNames = F.Pipe1(fullAuthorName, A.FoldMap[graphql.FullAuthor](commaSep))
+	fullAuthorNames = F.Pipe1(fullAuthorName, A.FoldMap[graphql.FullAuthor](strutils.Comma))
 
 	renderPublicationMarkdown = F.Flow2(publicationDoc, renderDoc)
 
@@ -66,11 +68,11 @@ func fullAuthorInitials(a graphql.FullAuthor) string { return a.Initials }
 
 // citation is "*Journal* volume:pages (year). [PubMed](url) · [DOI](url)".
 func citation(v PublicationView) string {
-	return joinSpaced([]string{
+	return strutils.JoinSpace([]string{
 		F.Pipe2(v.Journal, oneLine, md.Italic),
-		colonTight.Concat(oneLine(v.Volume), oneLine(v.Pages)),
-		F.Pipe3(v.PubDate, year, parens, periods),
-		dotted.Concat(md.Link("PubMed", v.PubMedURL), doiLink(v.DOI)),
+		strutils.Colon.Concat(oneLine(v.Volume), oneLine(v.Pages)),
+		F.Pipe3(v.PubDate, year, strutils.Parens, strutils.Period),
+		strutils.MiddleDot.Concat(md.Link("PubMed", v.PubMedURL), doiLink(v.DOI)),
 	})
 }
 
