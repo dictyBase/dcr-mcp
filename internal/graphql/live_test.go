@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultLiveEndpoint = "https://graphql.dictybase.dev/graphql"
+const defaultLiveEndpoint = "https://graphql.dictycr.dev/graphql"
 
 func liveClient(t *testing.T) (*graphql.Client, context.Context) {
 	t.Helper()
