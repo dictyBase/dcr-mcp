@@ -20,6 +20,7 @@ import (
 	S "github.com/IBM/fp-go/v2/string"
 	eithererr "github.com/dictyBase/fp-go-loom/eithererr"
 	ioeutils "github.com/dictyBase/fp-go-loom/ioeitherutils"
+	MO "github.com/dictyBase/fp-go-loom/matchopt"
 	predord "github.com/dictyBase/fp-go-loom/predicate/ord"
 	"github.com/dictybase/dcr-mcp/internal/server"
 	"github.com/urfave/cli/v3"
@@ -42,18 +43,20 @@ type (
 )
 
 const (
-	defaultGraphQLEndpoint = "https://graphql.dictybase.dev/graphql"
-	defaultHost            = "0.0.0.0"
-	defaultPort            = 8080
-	maxTCPPort             = 65535
-	defaultRateLimit       = 120
-	readHeaderTimeout      = 10 * time.Second
-	shutdownTimeout        = 5 * time.Second
+	defaultGraphQLPort = "8080"
+	defaultHost        = "0.0.0.0"
+	defaultPort        = 8080
+	maxTCPPort         = 65535
+	defaultRateLimit   = 120
+	readHeaderTimeout  = 10 * time.Second
+	shutdownTimeout    = 5 * time.Second
 
 	appName        = "dcr-mcp"
 	startServerCmd = "start-server"
 
 	flagGraphQLEndpoint = "graphql-endpoint"
+	flagGraphQLHost     = "graphql-host"
+	flagGraphQLPort     = "graphql-port"
 	flagHost            = "host"
 	flagPort            = "port"
 	flagStateless       = "stateless"
@@ -116,7 +119,7 @@ var (
 	)
 
 	errEmptyEndpoint = eithererr.ConstErr[string](
-		"graphql-endpoint must not be empty",
+		"graphql-endpoint or GRAPHQL_API_SERVICE_HOST must be set",
 	)
 	errInvalidPort = eithererr.ConstErr[int](
 		"port must be between 0 and 65535",
@@ -140,7 +143,33 @@ var (
 		E.BindL(statePortLens, validatePort),
 		E.BindL(stateRateLens, validateRateLimit),
 	)
+
+	isEndpointSet = func(cmd *cli.Command) bool {
+		return cmd.IsSet(flagGraphQLEndpoint)
+	}
+	hasGraphQLHost = F.Flow3(
+		func(cmd *cli.Command) string { return cmd.String(flagGraphQLHost) },
+		strings.TrimSpace,
+		S.IsNonEmpty,
+	)
+	resolveGraphQLEndpoint = MO.Match("", []O.Kleisli[*cli.Command, string]{
+		MO.Case(isEndpointSet, func(cmd *cli.Command) string {
+			return cmd.String(flagGraphQLEndpoint)
+		}),
+		MO.Case(hasGraphQLHost, buildK8sGraphQLEndpoint),
+	})
 )
+
+func buildK8sGraphQLEndpoint(cmd *cli.Command) string {
+	host := F.Pipe1(cmd.String(flagGraphQLHost), strings.TrimSpace)
+	port := F.Pipe3(
+		cmd.String(flagGraphQLPort),
+		strings.TrimSpace,
+		O.FromPredicate(S.IsNonEmpty),
+		O.GetOrElse(F.Constant(defaultGraphQLPort)),
+	)
+	return fmt.Sprintf("http://%s/graphql", net.JoinHostPort(host, port))
+}
 
 func seedServerState(in ServerActionInput) serverState {
 	host := in.Command.String(flagHost)
@@ -150,7 +179,7 @@ func seedServerState(in ServerActionInput) serverState {
 		cmd:  in.Command,
 		addr: net.JoinHostPort(host, N.ToString(port)),
 		cfg: server.Config{
-			GraphQLEndpoint: in.Command.String(flagGraphQLEndpoint),
+			GraphQLEndpoint: resolveGraphQLEndpoint(in.Command),
 			Host:            host,
 			Port:            port,
 			Stateless:       in.Command.Bool(flagStateless),
@@ -219,9 +248,19 @@ func serverFlags() []cli.Flag {
 		&cli.StringFlag{
 			Name:    flagGraphQLEndpoint,
 			Aliases: []string{"endpoint"},
-			Value:   defaultGraphQLEndpoint,
 			Usage:   "dictyBase GraphQL server endpoint URL",
 			Sources: cli.EnvVars("GRAPHQL_ENDPOINT"),
+		},
+		&cli.StringFlag{
+			Name:    flagGraphQLHost,
+			Usage:   "Kubernetes GraphQL service host",
+			Sources: cli.EnvVars("GRAPHQL_API_SERVICE_HOST", "GRAPHQL_API_PORT_8080_TCP_ADDR"),
+		},
+		&cli.StringFlag{
+			Name:    flagGraphQLPort,
+			Value:   defaultGraphQLPort,
+			Usage:   "Kubernetes GraphQL service port",
+			Sources: cli.EnvVars("GRAPHQL_API_SERVICE_PORT", "GRAPHQL_API_PORT_8080_TCP_PORT"),
 		},
 		&cli.StringFlag{
 			Name:    flagHost,
