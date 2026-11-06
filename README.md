@@ -367,7 +367,9 @@ The `serve` and `start` subcommands are aliases for `start-server`. Open `/healt
 
 | Flag | Environment variable | Default | Purpose |
 | :--- | :--- | :--- | :--- |
-| `--graphql-endpoint`, `--endpoint` | `GRAPHQL_ENDPOINT` | `https://graphql.dictybase.dev/graphql` | Upstream dictyBase GraphQL endpoint. |
+| `--graphql-endpoint`, `--endpoint` | `GRAPHQL_ENDPOINT` | *(none)* | Upstream dictyBase GraphQL endpoint (required unless `--graphql-host` is set). |
+| `--graphql-host` | `GRAPHQL_API_SERVICE_HOST`, `GRAPHQL_API_PORT_8080_TCP_ADDR` | *(none)* | Kubernetes GraphQL service host (used when `--graphql-endpoint` is not set). |
+| `--graphql-port` | `GRAPHQL_API_SERVICE_PORT`, `GRAPHQL_API_PORT_8080_TCP_PORT` | `8080` | Kubernetes GraphQL service port. |
 | `--host` | `MCP_HOST` | `0.0.0.0` | Bind address for the HTTP server. |
 | `--port` | `MCP_PORT` | `8080` | TCP port (`0`–`65535`). |
 | `--stateless` | `MCP_STATELESS` | `true` | Stateless Streamable HTTP mode. Any replica can serve any request. |
