@@ -14,7 +14,7 @@ require (
 	github.com/nao1215/markdown v1.1.1
 	github.com/stretchr/testify v1.12.1
 	github.com/urfave/cli/v3 v3.14.0
-	github.com/yuin/goldmark v1.8.6
+	github.com/yuin/goldmark v1.8.7
 )
 
 require (
