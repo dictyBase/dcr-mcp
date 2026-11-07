@@ -1,5 +1,5 @@
-github.com/IBM/fp-go/v2 v2.13.0 h1:MYYIIE96SjqQr7tK+EGR/LEolqnFXwzKB6KqTj/26KI=
-github.com/IBM/fp-go/v2 v2.13.0/go.mod h1:FOIrMSfoFLsaZ3tjFoo2EX1CjdbSm0l0047RcuLHGSw=
+github.com/IBM/fp-go/v2 v2.13.1 h1:qPXKhzAq1swAJ/48VG9ID+0ZB3XBQoht5XgZmjVnWPY=
+github.com/IBM/fp-go/v2 v2.13.1/go.mod h1:FOIrMSfoFLsaZ3tjFoo2EX1CjdbSm0l0047RcuLHGSw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/clipperhouse/displaywidth v0.11.0 h1:lBc6kY44VFw+TDx4I8opi/EtL9m20WSEFgwIwO+UVM8=
