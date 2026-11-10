@@ -16,10 +16,3 @@ jobs:
       - run: go version
       - name: unit test
         run: go test -covermode=atomic -coverprofile=profile.cov -v ./...
-        env:
-          GOPROXY: https://proxy.golang.org
-      - name: upload coverage to codecov
-        uses: codecov/codecov-action@v7
-        with:
-          files: ./profile.cov
-          token: ${{ secrets.CODECOV }}
