@@ -15,5 +15,3 @@ jobs:
           go-version: 1.26
       - name: live schema test
         run: go test -tags live -run TestLiveSchema -v ./internal/graphql/...
-        env:
-          GOPROXY: https://proxy.golang.org
