@@ -9,10 +9,12 @@ import (
 
 	A "github.com/IBM/fp-go/v2/array"
 	F "github.com/IBM/fp-go/v2/function"
+	L "github.com/IBM/fp-go/v2/optics/lens"
 	O "github.com/IBM/fp-go/v2/option"
 	P "github.com/IBM/fp-go/v2/predicate"
 	predarrays "github.com/dictyBase/fp-go-loom/predicate/array"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
+	"github.com/dictybase/dcr-mcp/internal/linkout"
 	"github.com/dictybase/dcr-mcp/internal/prompts"
 	"github.com/dictybase/dcr-mcp/internal/tools"
 	"github.com/go-chi/chi/v5"
@@ -31,6 +33,9 @@ type Config struct {
 	AllowedOrigins  []string
 	// RateLimit is the max /mcp requests per client IP per minute; 0 uses the default.
 	RateLimit int
+	// Linkouts builds public website links. The zero value uses
+	// linkout.DefaultBaseURL.
+	Linkouts linkout.Links
 }
 
 const (
@@ -55,16 +60,108 @@ const (
 		"Always cite stocks with the url field from results. The catalog cannot be modified through this server."
 )
 
+var (
+	implNameLens = L.MakeLens(
+		func(impl mcp.Implementation) string { return impl.Name },
+		func(impl mcp.Implementation, name string) mcp.Implementation {
+			impl.Name = name
+			return impl
+		},
+	)
+	implVersionLens = L.MakeLens(
+		func(impl mcp.Implementation) string { return impl.Version },
+		func(impl mcp.Implementation, version string) mcp.Implementation {
+			impl.Version = version
+			return impl
+		},
+	)
+	serverOptionsInstructionsLens = L.MakeLens(
+		func(opts mcp.ServerOptions) string { return opts.Instructions },
+		func(opts mcp.ServerOptions, instructions string) mcp.ServerOptions {
+			opts.Instructions = instructions
+			return opts
+		},
+	)
+	cfgEndpointLens = L.MakeLens(
+		func(c Config) string { return c.GraphQLEndpoint },
+		func(c Config, endpoint string) Config {
+			c.GraphQLEndpoint = endpoint
+			return c
+		},
+	)
+	cfgStatelessLens = L.MakeLens(
+		func(c Config) bool { return c.Stateless },
+		func(c Config, stateless bool) Config {
+			c.Stateless = stateless
+			return c
+		},
+	)
+	cfgOriginsLens = L.MakeLens(
+		func(c Config) []string { return c.AllowedOrigins },
+		func(c Config, origins []string) Config {
+			c.AllowedOrigins = origins
+			return c
+		},
+	)
+	cfgRateLimitLens = L.MakeLens(
+		func(c Config) int { return c.RateLimit },
+		func(c Config, limit int) Config {
+			c.RateLimit = limit
+			return c
+		},
+	)
+	cfgLinkoutsLens = L.MakeLens(
+		func(c Config) linkout.Links { return c.Linkouts },
+		func(c Config, links linkout.Links) Config {
+			c.Linkouts = links
+			return c
+		},
+	)
+	streamStatelessLens = L.MakeLens(
+		func(o mcp.StreamableHTTPOptions) bool { return o.Stateless },
+		func(o mcp.StreamableHTTPOptions, stateless bool) mcp.StreamableHTTPOptions {
+			o.Stateless = stateless
+			return o
+		},
+	)
+	streamJSONResponseLens = L.MakeLens(
+		func(o mcp.StreamableHTTPOptions) bool { return o.JSONResponse },
+		func(o mcp.StreamableHTTPOptions, jsonResponse bool) mcp.StreamableHTTPOptions {
+			o.JSONResponse = jsonResponse
+			return o
+		},
+	)
+	streamLocalhostLens = L.MakeLens(
+		func(o mcp.StreamableHTTPOptions) bool { return o.DisableLocalhostProtection },
+		func(o mcp.StreamableHTTPOptions, disable bool) mcp.StreamableHTTPOptions {
+			o.DisableLocalhostProtection = disable
+			return o
+		},
+	)
+	streamCancellationLens = L.MakeLens(
+		func(o mcp.StreamableHTTPOptions) bool { return o.PropagateRequestCancellation },
+		func(o mcp.StreamableHTTPOptions, propagate bool) mcp.StreamableHTTPOptions {
+			o.PropagateRequestCancellation = propagate
+			return o
+		},
+	)
+)
+
 // NewMCPServer creates an mcp.Server registered with all dictyBase stock tools.
-func NewMCPServer(client *graphql.Client) *mcp.Server {
-	srv := mcp.NewServer(&mcp.Implementation{
-		Name:    serverName,
-		Version: serverVersion,
-	}, &mcp.ServerOptions{
-		Instructions: serverInstructions,
-	})
+func NewMCPServer(client *graphql.Client, links linkout.Links) *mcp.Server {
+	srv := mcp.NewServer(
+		new(F.Pipe2(
+			mcp.Implementation{},
+			implNameLens.Set(serverName),
+			implVersionLens.Set(serverVersion),
+		)),
+		new(F.Pipe1(
+			mcp.ServerOptions{},
+			serverOptionsInstructionsLens.Set(serverInstructions),
+		)),
+	)
 	srv.AddReceivingMiddleware(ToolCallLogger(slog.Default()))
-	tools.RegisterAll(srv, client)
+	tools.RegisterAll(srv, client, links)
 	prompts.RegisterAll(srv)
 	return srv
 }
@@ -129,20 +226,26 @@ func clientIPKey(r *http.Request) (string, error) {
 
 // NewHTTPHandler constructs the chi router serving /healthz and /mcp (Streamable HTTP + chi middlewares).
 func NewHTTPHandler(cfg Config) http.Handler {
-	gqlClient := graphql.NewClient(cfg.GraphQLEndpoint, nil)
-	mcpSrv := NewMCPServer(gqlClient)
+	gqlClient := graphql.NewClient(cfgEndpointLens.Get(cfg), nil)
+
+	mcpSrv := NewMCPServer(gqlClient, cfgLinkoutsLens.Get(cfg))
 	streamHandler := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return mcpSrv },
-		&mcp.StreamableHTTPOptions{
-			Stateless:                    cfg.Stateless,
-			JSONResponse:                 true,
-			DisableLocalhostProtection:   true,
-			PropagateRequestCancellation: true,
-		},
+		new(F.Pipe4(
+			mcp.StreamableHTTPOptions{},
+			streamStatelessLens.Set(cfgStatelessLens.Get(cfg)),
+			streamJSONResponseLens.Set(true),
+			streamLocalhostLens.Set(true),
+			streamCancellationLens.Set(true),
+		)),
 	)
 
-	corsMiddleware := newCORSHandler(cfg.AllowedOrigins)
-	rateLimiter := httprate.LimitBy(resolveRateLimit(cfg.RateLimit), rateLimitWindow, clientIPKey)
+	corsMiddleware := newCORSHandler(cfgOriginsLens.Get(cfg))
+	rateLimiter := httprate.LimitBy(
+		resolveRateLimit(cfgRateLimitLens.Get(cfg)),
+		rateLimitWindow,
+		clientIPKey,
+	)
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Recoverer)

@@ -4,8 +4,10 @@ package tools
 import (
 	"context"
 
+	F "github.com/IBM/fp-go/v2/function"
 	L "github.com/IBM/fp-go/v2/optics/lens"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
+	"github.com/dictybase/dcr-mcp/internal/linkout"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -101,12 +103,14 @@ type (
 	}
 
 	fetchState struct {
+		links  linkout.Links
 		ctx    context.Context
 		client *graphql.Client
 		input  FetchInput
 	}
 
 	geneStocksState struct {
+		links    linkout.Links
 		ctx      context.Context
 		client   *graphql.Client
 		input    FindStocksByGeneInput
@@ -141,6 +145,152 @@ const (
 )
 
 var (
+	phenoTermParamsLens = L.MakeLens(
+		func(p graphql.PhenotypeListParams) string { return p.PhenotypeTerm },
+		func(p graphql.PhenotypeListParams, term string) graphql.PhenotypeListParams {
+			p.PhenotypeTerm = term
+			return p
+		},
+	)
+	idParamsCtxLens = L.MakeLens(
+		func(p graphql.IDParams) context.Context { return p.Ctx },
+		func(p graphql.IDParams, ctx context.Context) graphql.IDParams {
+			p.Ctx = ctx
+			return p
+		},
+	)
+	idParamsIDLens = L.MakeLens(
+		func(p graphql.IDParams) string { return p.ID },
+		func(p graphql.IDParams, id string) graphql.IDParams {
+			p.ID = id
+			return p
+		},
+	)
+	sequenceInputIDLens = L.MakeLens(
+		func(in GetPlasmidSequenceInput) string { return in.ID },
+		func(in GetPlasmidSequenceInput, id string) GetPlasmidSequenceInput {
+			in.ID = id
+			return in
+		},
+	)
+	chatgptQueryLens = L.MakeLens(
+		func(in ChatGPTSearchInput) string { return in.Query },
+		func(in ChatGPTSearchInput, query string) ChatGPTSearchInput {
+			in.Query = query
+			return in
+		},
+	)
+	strainStateCtxLens = L.MakeLens(
+		func(s strainState) context.Context { return s.ctx },
+		func(s strainState, ctx context.Context) strainState {
+			s.ctx = ctx
+			return s
+		},
+	)
+	strainStateClientLens = L.MakeLens(
+		func(s strainState) *graphql.Client { return s.client },
+		func(s strainState, client *graphql.Client) strainState {
+			s.client = client
+			return s
+		},
+	)
+	strainStateInputLens = L.MakeLens(
+		func(s strainState) GetStrainInput { return s.input },
+		func(s strainState, in GetStrainInput) strainState {
+			s.input = in
+			return s
+		},
+	)
+	plasmidStateCtxLens = L.MakeLens(
+		func(s plasmidState) context.Context { return s.ctx },
+		func(s plasmidState, ctx context.Context) plasmidState {
+			s.ctx = ctx
+			return s
+		},
+	)
+	plasmidStateClientLens = L.MakeLens(
+		func(s plasmidState) *graphql.Client { return s.client },
+		func(s plasmidState, client *graphql.Client) plasmidState {
+			s.client = client
+			return s
+		},
+	)
+	plasmidStateInputLens = L.MakeLens(
+		func(s plasmidState) GetPlasmidInput { return s.input },
+		func(s plasmidState, in GetPlasmidInput) plasmidState {
+			s.input = in
+			return s
+		},
+	)
+	fetchStateCtxLens = L.MakeLens(
+		func(s fetchState) context.Context { return s.ctx },
+		func(s fetchState, ctx context.Context) fetchState {
+			s.ctx = ctx
+			return s
+		},
+	)
+	fetchStateClientLens = L.MakeLens(
+		func(s fetchState) *graphql.Client { return s.client },
+		func(s fetchState, client *graphql.Client) fetchState {
+			s.client = client
+			return s
+		},
+	)
+	fetchStateInputLens = L.MakeLens(
+		func(s fetchState) FetchInput { return s.input },
+		func(s fetchState, in FetchInput) fetchState {
+			s.input = in
+			return s
+		},
+	)
+	fetchStateLinksLens = L.MakeLens(
+		func(s fetchState) linkout.Links { return s.links },
+		func(s fetchState, links linkout.Links) fetchState {
+			s.links = links
+			return s
+		},
+	)
+	geneStocksCtxLens = L.MakeLens(
+		func(s geneStocksState) context.Context { return s.ctx },
+		func(s geneStocksState, ctx context.Context) geneStocksState {
+			s.ctx = ctx
+			return s
+		},
+	)
+	geneStocksClientLens = L.MakeLens(
+		func(s geneStocksState) *graphql.Client { return s.client },
+		func(s geneStocksState, client *graphql.Client) geneStocksState {
+			s.client = client
+			return s
+		},
+	)
+	geneStocksInputLens = L.MakeLens(
+		func(s geneStocksState) FindStocksByGeneInput { return s.input },
+		func(s geneStocksState, in FindStocksByGeneInput) geneStocksState {
+			s.input = in
+			return s
+		},
+	)
+	geneStocksLinksLens = L.MakeLens(
+		func(s geneStocksState) linkout.Links { return s.links },
+		func(s geneStocksState, links linkout.Links) geneStocksState {
+			s.links = links
+			return s
+		},
+	)
+
+	strainStateInputIDLens = F.Pipe1(
+		strainStateInputLens,
+		L.Compose[strainState](strainIDLens),
+	)
+	plasmidStateInputIDLens = F.Pipe1(
+		plasmidStateInputLens,
+		L.Compose[plasmidState](plasmidIDLens),
+	)
+	fetchStateInputIDLens = F.Pipe1(
+		fetchStateInputLens,
+		L.Compose[fetchState](fetchIDLens),
+	)
 	autoQueryLens = L.MakeLens(
 		func(in AutocompleteStocksInput) string { return in.Query },
 		func(in AutocompleteStocksInput, q string) AutocompleteStocksInput {

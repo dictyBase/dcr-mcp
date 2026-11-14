@@ -4,20 +4,23 @@ import (
 	"testing"
 
 	"github.com/dictybase/dcr-mcp/internal/graphql"
+	"github.com/dictybase/dcr-mcp/internal/linkout"
 	"github.com/dictybase/dcr-mcp/internal/tools"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLinks(t *testing.T) {
-	require.Equal(t, "https://dictycr.org/strains/DBS0350840", tools.StrainURL("DBS0350840"))
-	require.Equal(t, "https://dictycr.org/plasmids/DBP0391806", tools.PlasmidURL("DBP0391806"))
+	require.Equal(t, "https://dictybase.dev/stockcenter/strains/DBS0350840", linkout.Links{}.StrainURL("DBS0350840"))
+	require.Equal(t, "https://dictybase.dev/stockcenter/plasmids/DBP0391806", linkout.Links{}.PlasmidURL("DBP0391806"))
 	require.Equal(t, "https://pubmed.ncbi.nlm.nih.gov/17177856/", tools.PubMedURL("17177856"))
 	require.Equal(t, "https://doi.org/10.1111/j.1432-0436.2006.00086.x", tools.DOIURL("10.1111/j.1432-0436.2006.00086.x"))
 	require.Empty(t, tools.DOIURL(""))
 
-	require.Equal(t, "https://dictycr.org/strains/DBS1", tools.StockURL(graphql.StockEntityStrain, "DBS1"))
-	require.Equal(t, "https://dictycr.org/plasmids/DBP1", tools.StockURL(graphql.StockEntityPlasmid, "DBP1"))
-	require.Empty(t, tools.StockURL(graphql.StockEntityAll, "X"))
+	require.Equal(t, "https://dictybase.dev/stockcenter/strains/DBS1",
+		tools.StockURL(linkout.Links{}, graphql.StockEntityStrain, "DBS1"))
+	require.Equal(t, "https://dictybase.dev/stockcenter/plasmids/DBP1",
+		tools.StockURL(linkout.Links{}, graphql.StockEntityPlasmid, "DBP1"))
+	require.Empty(t, tools.StockURL(linkout.Links{}, graphql.StockEntityAll, "X"))
 }
 
 func TestIDPrefix(t *testing.T) {

@@ -22,6 +22,7 @@ import (
 	ioeutils "github.com/dictyBase/fp-go-loom/ioeitherutils"
 	MO "github.com/dictyBase/fp-go-loom/matchopt"
 	predord "github.com/dictyBase/fp-go-loom/predicate/ord"
+	"github.com/dictybase/dcr-mcp/internal/linkout"
 	"github.com/dictybase/dcr-mcp/internal/server"
 	"github.com/urfave/cli/v3"
 )
@@ -34,6 +35,8 @@ type (
 	}
 
 	serverState struct {
+		linkoutBaseURL string
+
 		ctx      context.Context
 		cmd      *cli.Command
 		cfg      server.Config
@@ -43,6 +46,7 @@ type (
 )
 
 const (
+	flagLinkoutBaseURL = "linkout-base-url"
 	defaultGraphQLPort = "8080"
 	defaultHost        = "0.0.0.0"
 	defaultPort        = 8080
@@ -65,6 +69,88 @@ const (
 )
 
 var (
+	cfgHostLens = L.MakeLens(
+		func(c server.Config) string { return c.Host },
+		func(c server.Config, host string) server.Config {
+			c.Host = host
+			return c
+		},
+	)
+	cfgStatelessLens = L.MakeLens(
+		func(c server.Config) bool { return c.Stateless },
+		func(c server.Config, stateless bool) server.Config {
+			c.Stateless = stateless
+			return c
+		},
+	)
+	cfgOriginsLens = L.MakeLens(
+		func(c server.Config) []string { return c.AllowedOrigins },
+		func(c server.Config, origins []string) server.Config {
+			c.AllowedOrigins = origins
+			return c
+		},
+	)
+	cfgLinkoutsLens = L.MakeLens(
+		func(c server.Config) linkout.Links { return c.Linkouts },
+		func(c server.Config, links linkout.Links) server.Config {
+			c.Linkouts = links
+			return c
+		},
+	)
+	stateCtxLens = L.MakeLens(
+		func(s serverState) context.Context { return s.ctx },
+		func(s serverState, ctx context.Context) serverState {
+			s.ctx = ctx
+			return s
+		},
+	)
+	stateCmdLens = L.MakeLens(
+		func(s serverState) *cli.Command { return s.cmd },
+		func(s serverState, cmd *cli.Command) serverState {
+			s.cmd = cmd
+			return s
+		},
+	)
+	stateAddrLens = L.MakeLens(
+		func(s serverState) string { return s.addr },
+		func(s serverState, addr string) serverState {
+			s.addr = addr
+			return s
+		},
+	)
+	stateLinkoutRawLens = L.MakeLens(
+		func(s serverState) string { return s.linkoutBaseURL },
+		func(s serverState, raw string) serverState {
+			s.linkoutBaseURL = raw
+			return s
+		},
+	)
+
+	stateHostLens      = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgHostLens))
+	stateStatelessLens = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgStatelessLens))
+	stateOriginsLens   = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgOriginsLens))
+	stateLinkoutsLens  = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgLinkoutsLens))
+	flagNameLens       = L.MakeLens(
+		func(f cli.StringFlag) string { return f.Name },
+		func(f cli.StringFlag, name string) cli.StringFlag {
+			f.Name = name
+			return f
+		},
+	)
+	flagValueLens = L.MakeLens(
+		func(f cli.StringFlag) string { return f.Value },
+		func(f cli.StringFlag, value string) cli.StringFlag {
+			f.Value = value
+			return f
+		},
+	)
+	flagUsageLens = L.MakeLens(
+		func(f cli.StringFlag) string { return f.Usage },
+		func(f cli.StringFlag, usage string) cli.StringFlag {
+			f.Usage = usage
+			return f
+		},
+	)
 	cfgEndpointLens = L.MakeLens(
 		func(c server.Config) string { return c.GraphQLEndpoint },
 		func(c server.Config, ep string) server.Config {
@@ -137,11 +223,15 @@ var (
 		errInvalidPort,
 	)
 	validateRateLimit   = E.FromPredicate(isPositiveInt, errInvalidRateLimit)
-	validateServerState = F.Flow4(
+	validateServerState = F.Flow5(
 		E.Of[error, serverState],
 		E.BindL(stateEndpointLens, validateEndpoint),
 		E.BindL(statePortLens, validatePort),
 		E.BindL(stateRateLens, validateRateLimit),
+		E.Bind(
+			stateLinkoutsLens.Set,
+			F.Flow2(stateLinkoutRawLens.Get, linkout.Parse),
+		),
 	)
 
 	isEndpointSet = func(cmd *cli.Command) bool {
@@ -174,28 +264,31 @@ func buildK8sGraphQLEndpoint(cmd *cli.Command) string {
 func seedServerState(in ServerActionInput) serverState {
 	host := in.Command.String(flagHost)
 	port := in.Command.Int(flagPort)
-	return serverState{
-		ctx:  in.Context,
-		cmd:  in.Command,
-		addr: net.JoinHostPort(host, N.ToString(port)),
-		cfg: server.Config{
-			GraphQLEndpoint: resolveGraphQLEndpoint(in.Command),
-			Host:            host,
-			Port:            port,
-			Stateless:       in.Command.Bool(flagStateless),
-			AllowedOrigins:  in.Command.StringSlice(flagAllowedOrigins),
-			RateLimit:       in.Command.Int(flagRateLimit),
-		},
-	}
+
+	return F.Pipe10(
+		serverState{},
+		stateCtxLens.Set(in.Context),
+		stateCmdLens.Set(in.Command),
+		stateAddrLens.Set(net.JoinHostPort(host, N.ToString(port))),
+		stateLinkoutRawLens.Set(in.Command.String(flagLinkoutBaseURL)),
+		stateEndpointLens.Set(resolveGraphQLEndpoint(in.Command)),
+		stateHostLens.Set(host),
+		statePortLens.Set(port),
+		stateStatelessLens.Set(in.Command.Bool(flagStateless)),
+		stateOriginsLens.Set(in.Command.StringSlice(flagAllowedOrigins)),
+		stateRateLens.Set(in.Command.Int(flagRateLimit)),
+	)
 }
 
 func bindServerListener(s serverState) IOE.IOEither[error, net.Listener] {
+	addr := stateAddrLens.Get(s)
+
 	return F.Pipe1(
 		IOE.TryCatchError(func() (net.Listener, error) {
-			return net.Listen("tcp", s.addr)
+			return net.Listen("tcp", addr)
 		}),
 		IOE.MapLeft[net.Listener](func(err error) error {
-			return fmt.Errorf("listen on %s failed: %w", s.addr, err)
+			return fmt.Errorf("listen on %s failed: %w", addr, err)
 		}),
 	)
 }
@@ -204,19 +297,19 @@ func serveHTTP(s serverState) IOE.IOEither[error, struct{}] {
 	return F.Pipe1(
 		IOE.TryCatchError(func() (struct{}, error) {
 			srv := &http.Server{
-				Handler:           server.NewHTTPHandler(s.cfg),
+				Handler:           server.NewHTTPHandler(stateCfgLens.Get(s)),
 				ReadHeaderTimeout: readHeaderTimeout,
 			}
 			errCh := make(chan error, 1)
 			go func() {
-				rawErr := srv.Serve(s.listener)
+				rawErr := srv.Serve(stateListenerLens.Get(s))
 				errCh <- normalizeServeErr(rawErr)
 			}()
 
 			select {
 			case err := <-errCh:
 				return struct{}{}, err
-			case <-s.ctx.Done():
+			case <-stateCtxLens.Get(s).Done():
 				shutCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 				defer cancel()
 				_ = srv.Shutdown(shutCtx)
@@ -245,6 +338,12 @@ func RunServer(ctx context.Context, cmd *cli.Command) error {
 
 func serverFlags() []cli.Flag {
 	return []cli.Flag{
+		new(F.Pipe3(
+			cli.StringFlag{},
+			flagNameLens.Set(flagLinkoutBaseURL),
+			flagValueLens.Set(linkout.DefaultBaseURL),
+			flagUsageLens.Set("Base URL for gene, strain, plasmid, and publication links"),
+		)),
 		&cli.StringFlag{
 			Name:    flagGraphQLEndpoint,
 			Aliases: []string{"endpoint"},

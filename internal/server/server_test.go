@@ -3,9 +3,14 @@ package server_test
 import (
 	"context"
 	"encoding/json"
+	E "github.com/IBM/fp-go/v2/either"
+	F "github.com/IBM/fp-go/v2/function"
+	L "github.com/IBM/fp-go/v2/optics/lens"
+	"github.com/dictybase/dcr-mcp/internal/linkout"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/dictybase/dcr-mcp/internal/graphql"
@@ -15,6 +20,206 @@ import (
 )
 
 const testVersion = "test"
+
+var (
+	cfgEndpointLens = L.MakeLens(
+		func(c server.Config) string { return c.GraphQLEndpoint },
+		func(c server.Config, endpoint string) server.Config {
+			c.GraphQLEndpoint = endpoint
+			return c
+		},
+	)
+	cfgStatelessLens = L.MakeLens(
+		func(c server.Config) bool { return c.Stateless },
+		func(c server.Config, stateless bool) server.Config {
+			c.Stateless = stateless
+			return c
+		},
+	)
+	cfgOriginsLens = L.MakeLens(
+		func(c server.Config) []string { return c.AllowedOrigins },
+		func(c server.Config, origins []string) server.Config {
+			c.AllowedOrigins = origins
+			return c
+		},
+	)
+	cfgLinkoutsLens = L.MakeLens(
+		func(c server.Config) linkout.Links { return c.Linkouts },
+		func(c server.Config, links linkout.Links) server.Config {
+			c.Linkouts = links
+			return c
+		},
+	)
+	transportEndpointLens = L.MakeLens(
+		func(tr mcp.StreamableClientTransport) string { return tr.Endpoint },
+		func(tr mcp.StreamableClientTransport, endpoint string) mcp.StreamableClientTransport {
+			tr.Endpoint = endpoint
+			return tr
+		},
+	)
+	transportClientLens = L.MakeLens(
+		func(tr mcp.StreamableClientTransport) *http.Client { return tr.HTTPClient },
+		func(tr mcp.StreamableClientTransport, client *http.Client) mcp.StreamableClientTransport {
+			tr.HTTPClient = client
+			return tr
+		},
+	)
+	transportNoSSELens = L.MakeLens(
+		func(tr mcp.StreamableClientTransport) bool { return tr.DisableStandaloneSSE },
+		func(tr mcp.StreamableClientTransport, disable bool) mcp.StreamableClientTransport {
+			tr.DisableStandaloneSSE = disable
+			return tr
+		},
+	)
+	implNameLens = L.MakeLens(
+		func(impl mcp.Implementation) string { return impl.Name },
+		func(impl mcp.Implementation, name string) mcp.Implementation {
+			impl.Name = name
+			return impl
+		},
+	)
+	implVersionLens = L.MakeLens(
+		func(impl mcp.Implementation) string { return impl.Version },
+		func(impl mcp.Implementation, version string) mcp.Implementation {
+			impl.Version = version
+			return impl
+		},
+	)
+	callParamsNameLens = L.MakeLens(
+		func(p mcp.CallToolParams) string { return p.Name },
+		func(p mcp.CallToolParams, name string) mcp.CallToolParams {
+			p.Name = name
+			return p
+		},
+	)
+	callParamsArgsLens = L.MakeLens(
+		func(p mcp.CallToolParams) any { return p.Arguments },
+		func(p mcp.CallToolParams, args any) mcp.CallToolParams {
+			p.Arguments = args
+			return p
+		},
+	)
+)
+
+func serverLinks(t *testing.T, raw string) linkout.Links {
+	t.Helper()
+	links, err := E.Unwrap(linkout.Parse(raw))
+	require.NoError(t, err)
+	return links
+}
+
+func linkoutHandler(t *testing.T, endpoint string, links linkout.Links) *httptest.Server {
+	t.Helper()
+	httpSrv := httptest.NewServer(server.NewHTTPHandler(F.Pipe4(
+		server.Config{},
+		cfgEndpointLens.Set(endpoint),
+		cfgStatelessLens.Set(true),
+		cfgOriginsLens.Set([]string{"*"}),
+		cfgLinkoutsLens.Set(links),
+	)))
+	t.Cleanup(httpSrv.Close)
+	return httpSrv
+}
+
+func linkoutSession(t *testing.T, httpSrv *httptest.Server) *mcp.ClientSession {
+	t.Helper()
+	transport := new(F.Pipe3(
+		mcp.StreamableClientTransport{},
+		transportEndpointLens.Set(httpSrv.URL+"/mcp"),
+		transportClientLens.Set(httpSrv.Client()),
+		transportNoSSELens.Set(true),
+	))
+	client := mcp.NewClient(new(F.Pipe2(
+		mcp.Implementation{},
+		implNameLens.Set("web-agent"),
+		implVersionLens.Set(testVersion),
+	)), nil)
+	session, err := client.Connect(context.Background(), transport, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = session.Close() })
+	return session
+}
+
+func strainCall(session *mcp.ClientSession) (*mcp.CallToolResult, error) {
+	return session.CallTool(context.Background(), new(F.Pipe2(
+		mcp.CallToolParams{},
+		callParamsNameLens.Set("get_strain"),
+		callParamsArgsLens.Set(map[string]any{"id": "DBS0350840"}),
+	)))
+}
+
+func strainURLAndText(t *testing.T, res *mcp.CallToolResult) (string, string) {
+	t.Helper()
+	require.False(t, res.IsError)
+	structured, ok := res.StructuredContent.(map[string]any)
+	require.True(t, ok)
+	url, ok := structured["url"].(string)
+	require.True(t, ok)
+	text, ok := res.Content[0].(*mcp.TextContent)
+	require.True(t, ok)
+	return url, text.Text
+}
+
+func TestHTTPHandlerLinkouts(t *testing.T) {
+	gqlSrv := newServerStubGraphQL(t)
+	defer gqlSrv.Close()
+
+	t.Run("configured base", func(t *testing.T) {
+		httpSrv := linkoutHandler(t, gqlSrv.URL, serverLinks(t, "https://catalog.example.org"))
+		res, err := strainCall(linkoutSession(t, httpSrv))
+		require.NoError(t, err)
+		url, text := strainURLAndText(t, res)
+		require.Equal(t, "https://catalog.example.org/stockcenter/strains/DBS0350840", url)
+		require.Contains(t, text, url)
+	})
+
+	t.Run("zero value uses the default website", func(t *testing.T) {
+		httpSrv := linkoutHandler(t, gqlSrv.URL, linkout.Links{})
+		res, err := strainCall(linkoutSession(t, httpSrv))
+		require.NoError(t, err)
+		url, text := strainURLAndText(t, res)
+		require.Equal(t, "https://dictybase.dev/stockcenter/strains/DBS0350840", url)
+		require.Contains(t, text, url)
+	})
+}
+
+func TestHTTPHandlersKeepIndependentLinkouts(t *testing.T) {
+	gqlSrv := newServerStubGraphQL(t)
+	defer gqlSrv.Close()
+
+	alphaSession := linkoutSession(t, linkoutHandler(t, gqlSrv.URL, serverLinks(t, "https://alpha.example.org")))
+	betaSession := linkoutSession(t, linkoutHandler(t, gqlSrv.URL, serverLinks(t, "https://beta.example.org")))
+
+	results := make([]*mcp.CallToolResult, 2)
+	errs := make([]error, 2)
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		results[0], errs[0] = strainCall(alphaSession)
+	}()
+	go func() {
+		defer wg.Done()
+		results[1], errs[1] = strainCall(betaSession)
+	}()
+	wg.Wait()
+	require.NoError(t, errs[0])
+	require.NoError(t, errs[1])
+
+	alphaAgain, err := strainCall(alphaSession)
+	require.NoError(t, err)
+
+	alphaURL, alphaText := strainURLAndText(t, results[0])
+	betaURL, betaText := strainURLAndText(t, results[1])
+	alphaAgainURL, _ := strainURLAndText(t, alphaAgain)
+
+	require.Equal(t, "https://alpha.example.org/stockcenter/strains/DBS0350840", alphaURL)
+	require.Equal(t, "https://beta.example.org/stockcenter/strains/DBS0350840", betaURL)
+	require.Equal(t, alphaURL, alphaAgainURL)
+	require.Contains(t, alphaText, alphaURL)
+	require.Contains(t, betaText, betaURL)
+	require.NotContains(t, alphaText, betaURL)
+}
 
 func newServerStubGraphQL(t *testing.T) *httptest.Server {
 	t.Helper()
@@ -260,7 +465,7 @@ func TestHTTPHandler(t *testing.T) {
 }
 
 func TestServerInstructions(t *testing.T) {
-	srv := server.NewMCPServer(graphql.NewClient("http://127.0.0.1:0", nil))
+	srv := server.NewMCPServer(graphql.NewClient("http://127.0.0.1:0", nil), linkout.Links{})
 	ctx := context.Background()
 	t1, t2 := mcp.NewInMemoryTransports()
 	_, err := srv.Connect(ctx, t1, nil)

@@ -6,6 +6,7 @@ import (
 	E "github.com/IBM/fp-go/v2/either"
 	F "github.com/IBM/fp-go/v2/function"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
+	"github.com/dictybase/dcr-mcp/internal/linkout"
 	"github.com/dictybase/dcr-mcp/internal/tools"
 	"github.com/stretchr/testify/require"
 )
@@ -55,7 +56,7 @@ func phenoHit(id, field, displayText string) graphql.StockSearchHit {
 }
 
 func TestPhenotypeSearchViewGroupsMatchedTexts(t *testing.T) {
-	view := tools.ToPhenotypeSearchView(graphql.SearchResult{
+	view := tools.ToPhenotypeSearchView(linkout.Links{})(graphql.SearchResult{
 		Results: []graphql.StockSearchHit{
 			phenoHit("DBS1", testFieldTerm, "growth curve"),
 			phenoHit("DBS2", testFieldTerm, testVegGrowth),
@@ -70,11 +71,11 @@ func TestPhenotypeSearchViewGroupsMatchedTexts(t *testing.T) {
 		{Field: testFieldTerm, DisplayText: testVegGrowth, StrainCount: 1},
 		{Field: "TERM_DEFINITION", DisplayText: "growth curve", StrainCount: 1},
 	}, view.MatchedTexts, "first-seen order, grouped by field and text")
-	require.Equal(t, "https://dictycr.org/strains/DBS1", view.Results[0].URL)
+	require.Equal(t, "https://dictybase.dev/stockcenter/strains/DBS1", view.Results[0].URL)
 }
 
 func TestPhenotypeSearchViewEmpty(t *testing.T) {
-	view := tools.ToPhenotypeSearchView(graphql.SearchResult{Results: []graphql.StockSearchHit{}})
+	view := tools.ToPhenotypeSearchView(linkout.Links{})(graphql.SearchResult{Results: []graphql.StockSearchHit{}})
 	require.NotNil(t, view.MatchedTexts)
 	require.NotNil(t, view.Results)
 	require.Zero(t, view.Count)
@@ -92,12 +93,12 @@ func TestRenderPhenotypeSearchMarkdown(t *testing.T) {
 			phenoHit("DBS1", testFieldTerm, testVegGrowth),
 			gwdi,
 		}},
-		tools.ToPhenotypeSearchView,
+		tools.ToPhenotypeSearchView(linkout.Links{}),
 		tools.RenderPhenotypeSearchMarkdown,
 	)
 	require.Contains(t, md, "Top 2 strain matches")
 	require.Contains(t, md, "abolished vegetative growth (TERM\\_LABEL) — 2 strains")
-	require.Contains(t, md, "[DBS1](https://dictycr.org/strains/DBS1)")
+	require.Contains(t, md, "[DBS1](https://dictybase.dev/stockcenter/strains/DBS1)")
 	require.Contains(t, md, "· gwdi")
 	require.NotContains(t, md, "· regular")
 }
@@ -105,15 +106,15 @@ func TestRenderPhenotypeSearchMarkdown(t *testing.T) {
 func TestRenderPhenotypeStrainListMarkdown(t *testing.T) {
 	last := F.Pipe2(
 		graphql.PhenotypeStrainList{Strains: []graphql.PhenotypeStrainItem{{ID: "DBS9", Label: "x-"}}},
-		tools.ToPhenotypeStrainListView(testVegGrowth),
+		tools.ToPhenotypeStrainListView(linkout.Links{})(testVegGrowth),
 		tools.RenderPhenotypeStrainListMarkdown,
 	)
 	require.Contains(t, last, `1 strains with phenotype term "abolished vegetative growth" on this page. More pages: no.`)
-	require.Contains(t, last, "[DBS9](https://dictycr.org/strains/DBS9)")
+	require.Contains(t, last, "[DBS9](https://dictybase.dev/stockcenter/strains/DBS9)")
 
 	more := F.Pipe2(
 		graphql.PhenotypeStrainList{Strains: []graphql.PhenotypeStrainItem{}, NextCursor: 7},
-		tools.ToPhenotypeStrainListView(testVegGrowth),
+		tools.ToPhenotypeStrainListView(linkout.Links{})(testVegGrowth),
 		tools.RenderPhenotypeStrainListMarkdown,
 	)
 	require.Contains(t, more, "More pages: yes")
