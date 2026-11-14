@@ -2,8 +2,9 @@ package tools
 
 import (
 	"fmt"
-	"strings"
 
+	A "github.com/IBM/fp-go/v2/array"
+	B "github.com/IBM/fp-go/v2/bytes"
 	F "github.com/IBM/fp-go/v2/function"
 	IOE "github.com/IBM/fp-go/v2/ioeither"
 	O "github.com/IBM/fp-go/v2/option"
@@ -61,9 +62,15 @@ func StockURL(links linkout.Links, entity graphql.StockEntityType, id string) st
 	)
 }
 
-// IDPrefix returns the upper-cased first three characters of id ("DBS", "DBP", ...).
+// IDPrefix returns the upper-cased first three bytes of id ("DBS", "DBP", ...).
 func IDPrefix(id string) string {
-	return strings.ToUpper(id[:min(len(id), stockIDPrefixLen)])
+	return F.Pipe4(
+		id,
+		S.ToBytes,                          // Convert the ID to bytes.
+		A.Slice[byte](0, stockIDPrefixLen), // Keep at most three bytes.
+		B.ToString,                         // Convert the bytes to a string.
+		S.ToUpperCase,                      // Convert the prefix to uppercase.
+	)
 }
 
 // routeEffect selects a route, rejects unknown IDs, and applies the state.
