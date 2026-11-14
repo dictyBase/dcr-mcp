@@ -259,7 +259,7 @@ func newChatGPTFetchHandler(
 		_ *mcp.CallToolRequest,
 		input FetchInput,
 	) (*mcp.CallToolResult, FetchDocument, error) {
-		out := F.Pipe6(
+		out := F.Pipe5(
 			IOE.Of[error](input),
 			IOE.ChainEitherK(ValidateFetchInput),
 			IOE.Map[error](F.Flow4(
@@ -268,11 +268,10 @@ func newChatGPTFetchHandler(
 				fetchStateClientLens.Set(client),
 				fetchStateLinksLens.Set(links),
 			)),
-			IOE.ChainEitherK(F.Bind1st(
+			IOE.Chain(F.Bind1st(
 				F.Pipe1(fetchRoutes, F.Bind1of3(routeEffect[fetchState, FetchDocument])),
 				fetchStateInputIDLens.Get,
 			)),
-			IOE.Flatten[error, FetchDocument],
 			ioeutils.ToEither[error, FetchDocument],
 			E.Fold(
 				toOutcomeError[FetchDocument],

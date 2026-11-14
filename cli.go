@@ -69,34 +69,6 @@ const (
 )
 
 var (
-	cfgHostLens = L.MakeLens(
-		func(c server.Config) string { return c.Host },
-		func(c server.Config, host string) server.Config {
-			c.Host = host
-			return c
-		},
-	)
-	cfgStatelessLens = L.MakeLens(
-		func(c server.Config) bool { return c.Stateless },
-		func(c server.Config, stateless bool) server.Config {
-			c.Stateless = stateless
-			return c
-		},
-	)
-	cfgOriginsLens = L.MakeLens(
-		func(c server.Config) []string { return c.AllowedOrigins },
-		func(c server.Config, origins []string) server.Config {
-			c.AllowedOrigins = origins
-			return c
-		},
-	)
-	cfgLinkoutsLens = L.MakeLens(
-		func(c server.Config) linkout.Links { return c.Linkouts },
-		func(c server.Config, links linkout.Links) server.Config {
-			c.Linkouts = links
-			return c
-		},
-	)
 	stateCtxLens = L.MakeLens(
 		func(s serverState) context.Context { return s.ctx },
 		func(s serverState, ctx context.Context) serverState {
@@ -126,10 +98,10 @@ var (
 		},
 	)
 
-	stateHostLens      = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgHostLens))
-	stateStatelessLens = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgStatelessLens))
-	stateOriginsLens   = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgOriginsLens))
-	stateLinkoutsLens  = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgLinkoutsLens))
+	stateHostLens      = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigHostLens))
+	stateStatelessLens = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigStatelessLens))
+	stateOriginsLens   = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigOriginsLens))
+	stateLinkoutsLens  = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigLinkoutsLens))
 	flagNameLens       = L.MakeLens(
 		func(f cli.StringFlag) string { return f.Name },
 		func(f cli.StringFlag, name string) cli.StringFlag {
@@ -151,27 +123,6 @@ var (
 			return f
 		},
 	)
-	cfgEndpointLens = L.MakeLens(
-		func(c server.Config) string { return c.GraphQLEndpoint },
-		func(c server.Config, ep string) server.Config {
-			c.GraphQLEndpoint = ep
-			return c
-		},
-	)
-	cfgPortLens = L.MakeLens(
-		func(c server.Config) int { return c.Port },
-		func(c server.Config, p int) server.Config {
-			c.Port = p
-			return c
-		},
-	)
-	cfgRateLimitLens = L.MakeLens(
-		func(c server.Config) int { return c.RateLimit },
-		func(c server.Config, r int) server.Config {
-			c.RateLimit = r
-			return c
-		},
-	)
 	stateCfgLens = L.MakeLens(
 		func(s serverState) server.Config { return s.cfg },
 		func(s serverState, c server.Config) serverState {
@@ -187,9 +138,9 @@ var (
 		},
 	)
 
-	stateEndpointLens = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgEndpointLens))
-	statePortLens     = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgPortLens))
-	stateRateLens     = F.Pipe1(stateCfgLens, L.Compose[serverState](cfgRateLimitLens))
+	stateEndpointLens = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigEndpointLens))
+	statePortLens     = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigPortLens))
+	stateRateLens     = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigRateLimitLens))
 
 	isPositiveInt = F.Pipe1(1, ORD.Geq(predord.IntOrd))
 
