@@ -53,12 +53,15 @@ func DOIURL(doi string) string {
 
 // StockURL returns the stock page for id given its entity, or "" for unknown entities.
 func StockURL(links linkout.Links, entity graphql.StockEntityType, id string) string {
-	return F.Pipe4(
+	return F.Pipe2(
 		stockURLByEntity,
 		R.Lookup[stockRoute](entity),
-		O.Ap[func(string) string](O.Of(links)),
-		O.Ap[string](O.Of(id)),
-		O.GetOrElse(F.Constant(S.Monoid.Empty())),
+		O.Fold(
+			S.Monoid.Empty,
+			func(route stockRoute) string {
+				return F.Pipe1(id, route(links))
+			},
+		),
 	)
 }
 
