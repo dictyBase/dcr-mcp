@@ -2,6 +2,7 @@ package tools_test
 
 import (
 	"context"
+	"fmt"
 	A "github.com/IBM/fp-go/v2/array"
 	O "github.com/IBM/fp-go/v2/option"
 	"testing"
@@ -276,6 +277,15 @@ func callTool(
 	return structured, toolText(res)
 }
 
+// requireLinkout checks that a tool output and its text both carry want,
+// and that the text has no link to the obsolete website.
+func requireLinkout(t *testing.T, out map[string]any, text, want string) {
+	t.Helper()
+	require.Equal(t, want, out[testURLKey])
+	require.Contains(t, text, want)
+	require.NotContains(t, text, testObsoleteBase)
+}
+
 func mapsAt(t *testing.T, parent map[string]any, key string) []map[string]any {
 	t.Helper()
 	raw, ok := parent[key].([]any)
@@ -316,23 +326,19 @@ func TestStockLinkoutsCustomBase(t *testing.T) {
 
 	t.Run("get_strain", func(t *testing.T) {
 		summary, summaryText := callTool(t, session, "get_strain", map[string]any{"id": testStrainID})
-		require.Equal(t, testCustomStrainURL, summary[testURLKey])
+		requireLinkout(t, summary, summaryText, testCustomStrainURL)
 		require.Equal(t, "summary", summary[testDetailKey])
-		require.Contains(t, summaryText, testCustomStrainURL)
 
 		full, fullText := callTool(t, session, "get_strain", map[string]any{
 			"id":          testStrainID,
 			testDetailKey: testFullDetail,
 		})
-		require.Equal(t, testCustomStrainURL, full[testURLKey])
-		require.Contains(t, fullText, testCustomStrainURL)
-		require.NotContains(t, fullText, testObsoleteBase)
+		requireLinkout(t, full, fullText, testCustomStrainURL)
 	})
 
 	t.Run("get_plasmid", func(t *testing.T) {
 		summary, summaryText := callTool(t, session, "get_plasmid", map[string]any{"id": testPlasmidID})
-		require.Equal(t, testCustomPlasmidURL, summary[testURLKey])
-		require.Contains(t, summaryText, testCustomPlasmidURL)
+		requireLinkout(t, summary, summaryText, testCustomPlasmidURL)
 
 		full, _ := callTool(t, session, "get_plasmid", map[string]any{
 			"id":          testPlasmidID,
@@ -391,12 +397,10 @@ func TestStockLinkoutsCustomBase(t *testing.T) {
 
 	t.Run("fetch", func(t *testing.T) {
 		strain, _ := callTool(t, session, "fetch", map[string]any{"id": testStrainID})
-		require.Equal(t, testCustomStrainURL, strain[testURLKey])
-		require.Contains(t, strain["text"], testCustomStrainURL)
+		requireLinkout(t, strain, fmt.Sprint(strain["text"]), testCustomStrainURL)
 
 		plasmid, _ := callTool(t, session, "fetch", map[string]any{"id": "dbp0391806"})
-		require.Equal(t, testCustomPlasmidURL, plasmid[testURLKey])
-		require.Contains(t, plasmid["text"], testCustomPlasmidURL)
+		requireLinkout(t, plasmid, fmt.Sprint(plasmid["text"]), testCustomPlasmidURL)
 	})
 }
 
@@ -404,9 +408,7 @@ func TestStockLinkoutsDefaultBase(t *testing.T) {
 	session := newToolsSession(t)
 
 	strain, strainText := callTool(t, session, "get_strain", map[string]any{"id": testStrainID})
-	require.Equal(t, testDefaultBase+"/stockcenter/strains/DBS0350840", strain[testURLKey])
-	require.Contains(t, strainText, testDefaultBase+"/stockcenter/strains/DBS0350840")
-	require.NotContains(t, strainText, testObsoleteBase)
+	requireLinkout(t, strain, strainText, testDefaultBase+"/stockcenter/strains/DBS0350840")
 
 	plasmid, _ := callTool(t, session, "get_plasmid", map[string]any{"id": testPlasmidID})
 	require.Equal(t, testDefaultBase+"/stockcenter/plasmids/DBP0391806", plasmid[testURLKey])
