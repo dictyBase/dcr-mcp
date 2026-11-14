@@ -147,12 +147,12 @@ func resolveHTTPClient(httpClient *http.Client) *http.Client {
 
 // NewClient constructs a GraphQL Client targeting endpoint.
 func NewClient(endpoint string, httpClient *http.Client) *Client {
-	resolved := resolveHTTPClient(httpClient)
-	return &Client{
-		gql:          hasuragql.NewClient(endpoint, resolved),
-		strainCache:  expirable.NewLRU[string, StrainDetail](defaultCacheSize, nil, defaultCacheTTL),
-		plasmidCache: expirable.NewLRU[string, PlasmidDetail](defaultCacheSize, nil, defaultCacheTTL),
-	}
+	return new(F.Pipe3(
+		Client{},
+		clientGQLLens.Set(hasuragql.NewClient(endpoint, resolveHTTPClient(httpClient))),
+		clientStrainCacheLens.Set(expirable.NewLRU[string, StrainDetail](defaultCacheSize, nil, defaultCacheTTL)),
+		clientPlasmidCacheLens.Set(expirable.NewLRU[string, PlasmidDetail](defaultCacheSize, nil, defaultCacheTTL)),
+	))
 }
 
 func storeIn[V any](cache *expirable.LRU[string, V], key string) func(V) IO.IO[struct{}] {
@@ -228,24 +228,25 @@ func notPhenotypeTermErr(f phenotypeListFailure) error {
 	return fmt.Errorf("%q is %w: %w", f.term, ErrNotPhenotypeTerm, f.err)
 }
 
-func phenotypeListQueryFailed(f phenotypeListFailure) func() error {
-	wrapped := fmt.Errorf(
+func phenotypeListQueryFailed(f phenotypeListFailure) error {
+	return fmt.Errorf(
 		"listStrainsWithAnnotation query for phenotype term %q failed: %w",
 		f.term,
 		f.err,
 	)
-	return F.Constant(wrapped)
 }
 
 // mapPhenotypeListErr turns NotFound and Internal into ErrNotPhenotypeTerm.
 // NotFound means "not a phenotype term", not "zero strains", so it must not
 // become an empty list.
 func mapPhenotypeListErr(term string, err error) error {
-	failure := phenotypeListFailure{term: term, err: err}
-	return F.Pipe2(
-		failure,
-		O.FromPredicate(isRejectedTermFailure),
-		O.Fold(F.Pipe1(failure, phenotypeListQueryFailed), notPhenotypeTermErr),
+	return F.Pipe4(
+		phenotypeListFailure{},
+		phenotypeListFailureTermLens.Set(term),
+		phenotypeListFailureErrLens.Set(err),
+		// Right holds a rejected-term failure. Left holds any other failure, already wrapped.
+		E.FromPredicate(isRejectedTermFailure, phenotypeListQueryFailed),
+		E.Fold(F.Identity[error], notPhenotypeTermErr),
 	)
 }
 
@@ -378,17 +379,18 @@ func (c *Client) ListStrainsWithPhenotype(
 					},
 				),
 				IOE.Map[error](func(pubLists [][]PhenotypePublicationRef) PhenotypeStrainList {
-					return PhenotypeStrainList{
-						Strains: A.ZipWith(
+					return F.Pipe2(
+						PhenotypeStrainList{},
+						phenotypeStrainListStrainsLens.Set(A.ZipWith(
 							list.Strains,
 							pubLists,
 							func(item PhenotypeStrainItem, pubs []PhenotypePublicationRef) PhenotypeStrainItem {
 								item.Publications = pubs
 								return item
 							},
-						),
-						NextCursor: list.NextCursor,
-					}
+						)),
+						phenotypeStrainListNextCursorLens.Set(list.NextCursor),
+					)
 				}),
 			)
 		}),
@@ -421,9 +423,6 @@ func recoverNotFound[T any](empty func() T) func(error) IOE.IOEither[error, T] {
 
 // GetGeneInfo resolves a gene name or DDB_G id via geneGeneralInformation.
 func (c *Client) GetGeneInfo(params GeneParams) IOE.IOEither[error, GeneInfo] {
-	notFound := func(GeneInfo) error {
-		return fmt.Errorf("gene %q not found in dictyBase", params.Gene)
-	}
 	return F.Pipe3(
 		IOE.TryCatchError(func() (*geneInfoQuery, error) {
 			query := new(geneInfoQuery)
@@ -433,7 +432,9 @@ func (c *Client) GetGeneInfo(params GeneParams) IOE.IOEither[error, GeneInfo] {
 			return fmt.Errorf("geneGeneralInformation query for %q failed: %w", params.Gene, err)
 		}),
 		IOE.Map[error](toGeneInfo),
-		IOE.ChainEitherK(E.FromPredicate(geneFound, notFound)),
+		IOE.ChainEitherK(E.FromPredicate(geneFound, F.Constant1[GeneInfo](
+			fmt.Errorf("gene %q not found in dictyBase", params.Gene),
+		))),
 	)
 }
 
@@ -454,9 +455,6 @@ func (c *Client) ListStrainsWithGene(params GeneParams) IOE.IOEither[error, []Ge
 
 // GetPublication fetches one publication by its PubMed id.
 func (c *Client) GetPublication(params IDParams) IOE.IOEither[error, PublicationDetail] {
-	notFound := func(PublicationDetail) error {
-		return fmt.Errorf("publication %q not found", params.ID)
-	}
 	return F.Pipe3(
 		IOE.TryCatchError(func() (*publicationQuery, error) {
 			query := new(publicationQuery)
@@ -468,6 +466,8 @@ func (c *Client) GetPublication(params IDParams) IOE.IOEither[error, Publication
 			return fmt.Errorf("publication query for %q failed: %w", params.ID, err)
 		}),
 		IOE.Map[error](toPublicationDetail),
-		IOE.ChainEitherK(E.FromPredicate(publicationFound, notFound)),
+		IOE.ChainEitherK(E.FromPredicate(publicationFound, F.Constant1[PublicationDetail](
+			fmt.Errorf("publication %q not found", params.ID),
+		))),
 	)
 }

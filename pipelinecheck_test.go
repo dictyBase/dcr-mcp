@@ -27,4 +27,6 @@ func TestPipelineStyle(t *testing.T) {
 	pipelinecheck.RequireNoImperativeLoop(t, cfg)
 	pipelinecheck.RequireNoImperativeBranch(t, cfg)
 	pipelinecheck.RequireNoDirectApply(t, cfg)
+	pipelinecheck.RequireNoPopulatedStruct(t, cfg)
+	pipelinecheck.RequireNoLocalPipeClosure(t, cfg)
 }

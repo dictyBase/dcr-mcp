@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	A "github.com/IBM/fp-go/v2/array"
 	"net"
 	"net/http"
 	"strings"
@@ -69,6 +70,181 @@ const (
 )
 
 var (
+	actionInputContextLens = L.MakeLens(
+		func(x ServerActionInput) context.Context { return x.Context },
+		func(x ServerActionInput, value context.Context) ServerActionInput {
+			x.Context = value
+			return x
+		},
+	)
+	actionInputCommandLens = L.MakeLens(
+		func(x ServerActionInput) *cli.Command { return x.Command },
+		func(x ServerActionInput, value *cli.Command) ServerActionInput {
+			x.Command = value
+			return x
+		},
+	)
+	stringFlagNameLens = L.MakeLens(
+		func(x cli.StringFlag) string { return x.Name },
+		func(x cli.StringFlag, value string) cli.StringFlag {
+			x.Name = value
+			return x
+		},
+	)
+	stringFlagValueLens = L.MakeLens(
+		func(x cli.StringFlag) string { return x.Value },
+		func(x cli.StringFlag, value string) cli.StringFlag {
+			x.Value = value
+			return x
+		},
+	)
+	stringFlagUsageLens = L.MakeLens(
+		func(x cli.StringFlag) string { return x.Usage },
+		func(x cli.StringFlag, value string) cli.StringFlag {
+			x.Usage = value
+			return x
+		},
+	)
+	stringFlagSourcesLens = L.MakeLens(
+		func(x cli.StringFlag) cli.ValueSourceChain { return x.Sources },
+		func(x cli.StringFlag, value cli.ValueSourceChain) cli.StringFlag {
+			x.Sources = value
+			return x
+		},
+	)
+	intFlagNameLens = L.MakeLens(
+		func(x cli.IntFlag) string { return x.Name },
+		func(x cli.IntFlag, value string) cli.IntFlag {
+			x.Name = value
+			return x
+		},
+	)
+	intFlagValueLens = L.MakeLens(
+		func(x cli.IntFlag) int { return x.Value },
+		func(x cli.IntFlag, value int) cli.IntFlag {
+			x.Value = value
+			return x
+		},
+	)
+	intFlagUsageLens = L.MakeLens(
+		func(x cli.IntFlag) string { return x.Usage },
+		func(x cli.IntFlag, value string) cli.IntFlag {
+			x.Usage = value
+			return x
+		},
+	)
+	intFlagSourcesLens = L.MakeLens(
+		func(x cli.IntFlag) cli.ValueSourceChain { return x.Sources },
+		func(x cli.IntFlag, value cli.ValueSourceChain) cli.IntFlag {
+			x.Sources = value
+			return x
+		},
+	)
+	boolFlagNameLens = L.MakeLens(
+		func(x cli.BoolFlag) string { return x.Name },
+		func(x cli.BoolFlag, value string) cli.BoolFlag {
+			x.Name = value
+			return x
+		},
+	)
+	boolFlagValueLens = L.MakeLens(
+		func(x cli.BoolFlag) bool { return x.Value },
+		func(x cli.BoolFlag, value bool) cli.BoolFlag {
+			x.Value = value
+			return x
+		},
+	)
+	boolFlagUsageLens = L.MakeLens(
+		func(x cli.BoolFlag) string { return x.Usage },
+		func(x cli.BoolFlag, value string) cli.BoolFlag {
+			x.Usage = value
+			return x
+		},
+	)
+	boolFlagSourcesLens = L.MakeLens(
+		func(x cli.BoolFlag) cli.ValueSourceChain { return x.Sources },
+		func(x cli.BoolFlag, value cli.ValueSourceChain) cli.BoolFlag {
+			x.Sources = value
+			return x
+		},
+	)
+	stringSliceFlagNameLens = L.MakeLens(
+		func(x cli.StringSliceFlag) string { return x.Name },
+		func(x cli.StringSliceFlag, value string) cli.StringSliceFlag {
+			x.Name = value
+			return x
+		},
+	)
+	stringSliceFlagValueLens = L.MakeLens(
+		func(x cli.StringSliceFlag) []string { return x.Value },
+		func(x cli.StringSliceFlag, value []string) cli.StringSliceFlag {
+			x.Value = value
+			return x
+		},
+	)
+	stringSliceFlagUsageLens = L.MakeLens(
+		func(x cli.StringSliceFlag) string { return x.Usage },
+		func(x cli.StringSliceFlag, value string) cli.StringSliceFlag {
+			x.Usage = value
+			return x
+		},
+	)
+	stringSliceFlagSourcesLens = L.MakeLens(
+		func(x cli.StringSliceFlag) cli.ValueSourceChain { return x.Sources },
+		func(x cli.StringSliceFlag, value cli.ValueSourceChain) cli.StringSliceFlag {
+			x.Sources = value
+			return x
+		},
+	)
+	stringFlagAliasesLens = L.MakeLens(
+		func(x cli.StringFlag) []string { return x.Aliases },
+		func(x cli.StringFlag, value []string) cli.StringFlag {
+			x.Aliases = value
+			return x
+		},
+	)
+	commandNameLens = L.MakeLens(
+		func(x cli.Command) string { return x.Name },
+		func(x cli.Command, value string) cli.Command {
+			x.Name = value
+			return x
+		},
+	)
+	commandUsageLens = L.MakeLens(
+		func(x cli.Command) string { return x.Usage },
+		func(x cli.Command, value string) cli.Command {
+			x.Usage = value
+			return x
+		},
+	)
+	commandAliasesLens = L.MakeLens(
+		func(x cli.Command) []string { return x.Aliases },
+		func(x cli.Command, value []string) cli.Command {
+			x.Aliases = value
+			return x
+		},
+	)
+	commandCommandsLens = L.MakeLens(
+		func(x cli.Command) []*cli.Command { return x.Commands },
+		func(x cli.Command, value []*cli.Command) cli.Command {
+			x.Commands = value
+			return x
+		},
+	)
+	commandFlagsLens = L.MakeLens(
+		func(x cli.Command) []cli.Flag { return x.Flags },
+		func(x cli.Command, value []cli.Flag) cli.Command {
+			x.Flags = value
+			return x
+		},
+	)
+	commandActionLens = L.MakeLens(
+		func(x cli.Command) cli.ActionFunc { return x.Action },
+		func(x cli.Command, value cli.ActionFunc) cli.Command {
+			x.Action = value
+			return x
+		},
+	)
 	stateCtxLens = L.MakeLens(
 		func(s serverState) context.Context { return s.ctx },
 		func(s serverState, ctx context.Context) serverState {
@@ -102,28 +278,7 @@ var (
 	stateStatelessLens = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigStatelessLens))
 	stateOriginsLens   = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigOriginsLens))
 	stateLinkoutsLens  = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigLinkoutsLens))
-	flagNameLens       = L.MakeLens(
-		func(f cli.StringFlag) string { return f.Name },
-		func(f cli.StringFlag, name string) cli.StringFlag {
-			f.Name = name
-			return f
-		},
-	)
-	flagValueLens = L.MakeLens(
-		func(f cli.StringFlag) string { return f.Value },
-		func(f cli.StringFlag, value string) cli.StringFlag {
-			f.Value = value
-			return f
-		},
-	)
-	flagUsageLens = L.MakeLens(
-		func(f cli.StringFlag) string { return f.Usage },
-		func(f cli.StringFlag, usage string) cli.StringFlag {
-			f.Usage = usage
-			return f
-		},
-	)
-	stateCfgLens = L.MakeLens(
+	stateCfgLens       = L.MakeLens(
 		func(s serverState) server.Config { return s.cfg },
 		func(s serverState, c server.Config) serverState {
 			s.cfg = c
@@ -244,6 +399,7 @@ func bindServerListener(s serverState) IOE.IOEither[error, net.Listener] {
 	)
 }
 
+// fp-go:allow-struct-literal http.Server holds a mutex, so a value lens cannot copy it
 func serveHTTP(s serverState) IOE.IOEither[error, struct{}] {
 	return F.Pipe1(
 		IOE.TryCatchError(func() (struct{}, error) {
@@ -275,8 +431,10 @@ func serveHTTP(s serverState) IOE.IOEither[error, struct{}] {
 
 // RunServer validates CLI flags and runs the Streamable HTTP MCP server.
 func RunServer(ctx context.Context, cmd *cli.Command) error {
-	return F.Pipe7(
-		ServerActionInput{Context: ctx, Command: cmd},
+	return F.Pipe9(
+		ServerActionInput{},
+		actionInputContextLens.Set(ctx),
+		actionInputCommandLens.Set(cmd),
 		seedServerState,
 		IOE.Of[error, serverState],
 		IOE.ChainEitherK(validateServerState),
@@ -291,73 +449,81 @@ func serverFlags() []cli.Flag {
 	return []cli.Flag{
 		new(F.Pipe3(
 			cli.StringFlag{},
-			flagNameLens.Set(flagLinkoutBaseURL),
-			flagValueLens.Set(linkout.DefaultBaseURL),
-			flagUsageLens.Set("Base URL for gene, strain, plasmid, and publication links"),
+			stringFlagNameLens.Set(flagLinkoutBaseURL),
+			stringFlagValueLens.Set(linkout.DefaultBaseURL),
+			stringFlagUsageLens.Set("Base URL for gene, strain, plasmid, and publication links"),
 		)),
-		&cli.StringFlag{
-			Name:    flagGraphQLEndpoint,
-			Aliases: []string{"endpoint"},
-			Usage:   "dictyBase GraphQL server endpoint URL",
-			Sources: cli.EnvVars("GRAPHQL_ENDPOINT"),
-		},
-		&cli.StringFlag{
-			Name:    flagGraphQLHost,
-			Usage:   "Kubernetes GraphQL service host",
-			Sources: cli.EnvVars("GRAPHQL_API_SERVICE_HOST", "GRAPHQL_API_PORT_8080_TCP_ADDR"),
-		},
-		&cli.StringFlag{
-			Name:    flagGraphQLPort,
-			Value:   defaultGraphQLPort,
-			Usage:   "Kubernetes GraphQL service port",
-			Sources: cli.EnvVars("GRAPHQL_API_SERVICE_PORT", "GRAPHQL_API_PORT_8080_TCP_PORT"),
-		},
-		&cli.StringFlag{
-			Name:    flagHost,
-			Value:   defaultHost,
-			Usage:   "Host address for the HTTP MCP server to bind",
-			Sources: cli.EnvVars("MCP_HOST"),
-		},
-		&cli.IntFlag{
-			Name:    flagPort,
-			Value:   defaultPort,
-			Usage:   "TCP port for the HTTP MCP server",
-			Sources: cli.EnvVars("MCP_PORT"),
-		},
-		&cli.BoolFlag{
-			Name:    flagStateless,
-			Value:   true,
-			Usage:   "Run Streamable HTTP handler in stateless mode for Kubernetes ingress",
-			Sources: cli.EnvVars("MCP_STATELESS"),
-		},
-		&cli.StringSliceFlag{
-			Name:    flagAllowedOrigins,
-			Value:   []string{"*"},
-			Usage:   "Allowed CORS origins for web clients",
-			Sources: cli.EnvVars("ALLOWED_ORIGINS"),
-		},
-		&cli.IntFlag{
-			Name:    flagRateLimit,
-			Value:   defaultRateLimit,
-			Usage:   "Maximum /mcp requests per client IP per minute",
-			Sources: cli.EnvVars("MCP_RATE_LIMIT"),
-		},
+		new(F.Pipe4(
+			cli.StringFlag{},
+			stringFlagNameLens.Set(flagGraphQLEndpoint),
+			stringFlagAliasesLens.Set([]string{"endpoint"}),
+			stringFlagUsageLens.Set("dictyBase GraphQL server endpoint URL"),
+			stringFlagSourcesLens.Set(cli.EnvVars("GRAPHQL_ENDPOINT")),
+		)),
+		new(F.Pipe3(
+			cli.StringFlag{},
+			stringFlagNameLens.Set(flagGraphQLHost),
+			stringFlagUsageLens.Set("Kubernetes GraphQL service host"),
+			stringFlagSourcesLens.Set(cli.EnvVars("GRAPHQL_API_SERVICE_HOST", "GRAPHQL_API_PORT_8080_TCP_ADDR")),
+		)),
+		new(F.Pipe4(
+			cli.StringFlag{},
+			stringFlagNameLens.Set(flagGraphQLPort),
+			stringFlagValueLens.Set(defaultGraphQLPort),
+			stringFlagUsageLens.Set("Kubernetes GraphQL service port"),
+			stringFlagSourcesLens.Set(cli.EnvVars("GRAPHQL_API_SERVICE_PORT", "GRAPHQL_API_PORT_8080_TCP_PORT")),
+		)),
+		new(F.Pipe4(
+			cli.StringFlag{},
+			stringFlagNameLens.Set(flagHost),
+			stringFlagValueLens.Set(defaultHost),
+			stringFlagUsageLens.Set("Host address for the HTTP MCP server to bind"),
+			stringFlagSourcesLens.Set(cli.EnvVars("MCP_HOST")),
+		)),
+		new(F.Pipe4(
+			cli.IntFlag{},
+			intFlagNameLens.Set(flagPort),
+			intFlagValueLens.Set(defaultPort),
+			intFlagUsageLens.Set("TCP port for the HTTP MCP server"),
+			intFlagSourcesLens.Set(cli.EnvVars("MCP_PORT")),
+		)),
+		new(F.Pipe4(
+			cli.BoolFlag{},
+			boolFlagNameLens.Set(flagStateless),
+			boolFlagValueLens.Set(true),
+			boolFlagUsageLens.Set("Run Streamable HTTP handler in stateless mode for Kubernetes ingress"),
+			boolFlagSourcesLens.Set(cli.EnvVars("MCP_STATELESS")),
+		)),
+		new(F.Pipe4(
+			cli.StringSliceFlag{},
+			stringSliceFlagNameLens.Set(flagAllowedOrigins),
+			stringSliceFlagValueLens.Set([]string{"*"}),
+			stringSliceFlagUsageLens.Set("Allowed CORS origins for web clients"),
+			stringSliceFlagSourcesLens.Set(cli.EnvVars("ALLOWED_ORIGINS")),
+		)),
+		new(F.Pipe4(
+			cli.IntFlag{},
+			intFlagNameLens.Set(flagRateLimit),
+			intFlagValueLens.Set(defaultRateLimit),
+			intFlagUsageLens.Set("Maximum /mcp requests per client IP per minute"),
+			intFlagSourcesLens.Set(cli.EnvVars("MCP_RATE_LIMIT")),
+		)),
 	}
 }
 
 // NewApp constructs the root urfave/cli/v3 command for dcr-mcp.
 func NewApp() *cli.Command {
-	return &cli.Command{
-		Name:  appName,
-		Usage: "dictyBase Stock Center Model Context Protocol (MCP) server",
-		Commands: []*cli.Command{
-			{
-				Name:    startServerCmd,
-				Aliases: []string{"serve", "start"},
-				Usage:   "Start the dictyBase Stock Center Streamable HTTP MCP server",
-				Flags:   serverFlags(),
-				Action:  RunServer,
-			},
-		},
-	}
+	return new(F.Pipe3(
+		cli.Command{},
+		commandNameLens.Set(appName),
+		commandUsageLens.Set("dictyBase Stock Center Model Context Protocol (MCP) server"),
+		commandCommandsLens.Set(A.Of(new(F.Pipe5(
+			cli.Command{},
+			commandNameLens.Set(startServerCmd),
+			commandAliasesLens.Set([]string{"serve", "start"}),
+			commandUsageLens.Set("Start the dictyBase Stock Center Streamable HTTP MCP server"),
+			commandFlagsLens.Set(serverFlags()),
+			commandActionLens.Set(RunServer),
+		)))),
+	))
 }
