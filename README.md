@@ -375,6 +375,18 @@ The `serve` and `start` subcommands are aliases for `start-server`. Open `/healt
 | `--stateless` | `MCP_STATELESS` | `true` | Stateless Streamable HTTP mode. Any replica can serve any request. |
 | `--allowed-origins` | `ALLOWED_ORIGINS` | `*` | Allowed CORS origins for browser-based MCP clients. |
 | `--rate-limit` | `MCP_RATE_LIMIT` | `120` | Maximum `/mcp` requests for each client IP each minute (`>= 1`). |
+| `--linkout-base-url` | *(none)* | `https://dictybase.dev` | Public website for gene, strain, plasmid, and publication links. |
+
+The public website uses `/gene/{id}`, `/stockcenter/strains/{id}`, `/stockcenter/plasmids/{id}`, and `/publication/{id}`.
+The `--linkout-base-url` option changes these website links.
+It does not change the GraphQL endpoint or HTTP bind address.
+PubMed and DOI links remain external.
+
+```bash
+go run . start-server \
+  --graphql-endpoint https://graphql.dictycr.dev/graphql \
+  --linkout-base-url https://catalog.example.org
+```
 
 ### Deploy for Web Clients
 

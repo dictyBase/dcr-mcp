@@ -3,13 +3,14 @@ package tools
 import (
 	"context"
 
+	A "github.com/IBM/fp-go/v2/array"
 	E "github.com/IBM/fp-go/v2/either"
 	F "github.com/IBM/fp-go/v2/function"
 	IOE "github.com/IBM/fp-go/v2/ioeither"
-	O "github.com/IBM/fp-go/v2/option"
-	R "github.com/IBM/fp-go/v2/record"
+	L "github.com/IBM/fp-go/v2/optics/lens"
 	ioeutils "github.com/dictyBase/fp-go-loom/ioeitherutils"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
+	"github.com/dictybase/dcr-mcp/internal/linkout"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -30,102 +31,194 @@ type (
 	}
 
 	stockLookup struct {
+		links  linkout.Links
 		ctx    context.Context
 		client *graphql.Client
 		id     string
 	}
 
-	availabilityRoute func(stockLookup) IOE.IOEither[error, AvailabilityItem]
+	availabilityRoute = func(stockLookup) IOE.IOEither[error, AvailabilityItem]
+)
+
+const (
+	strainEntityName  = "strain"
+	plasmidEntityName = "plasmid"
 )
 
 var (
+	stockLookupCtxLens = L.MakeLens(
+		func(l stockLookup) context.Context { return l.ctx },
+		func(l stockLookup, ctx context.Context) stockLookup {
+			l.ctx = ctx
+			return l
+
+		},
+	)
+	stockLookupClientLens = L.MakeLens(
+		func(l stockLookup) *graphql.Client { return l.client },
+		func(l stockLookup, client *graphql.Client) stockLookup {
+			l.client = client
+			return l
+		},
+	)
+	stockLookupIDLens = L.MakeLens(
+		func(l stockLookup) string { return l.id },
+		func(l stockLookup, id string) stockLookup {
+			l.id = id
+			return l
+		},
+	)
+	stockLookupLinksLens = L.MakeLens(
+		func(l stockLookup) linkout.Links { return l.links },
+		func(l stockLookup, links linkout.Links) stockLookup {
+			l.links = links
+			return l
+		},
+	)
+	availabilityItemIDLens = L.MakeLens(
+		func(item AvailabilityItem) string { return item.ID },
+		func(item AvailabilityItem, id string) AvailabilityItem {
+			item.ID = id
+			return item
+		},
+	)
+	availabilityItemEntityLens = L.MakeLens(
+		func(item AvailabilityItem) string { return item.Entity },
+		func(item AvailabilityItem, entity string) AvailabilityItem {
+			item.Entity = entity
+			return item
+		},
+	)
+	availabilityItemLabelLens = L.MakeLens(
+		func(item AvailabilityItem) string { return item.Label },
+		func(item AvailabilityItem, label string) AvailabilityItem {
+			item.Label = label
+			return item
+		},
+	)
+	availabilityItemInStockLens = L.MakeLens(
+		func(item AvailabilityItem) bool { return item.InStock },
+		func(item AvailabilityItem, inStock bool) AvailabilityItem {
+			item.InStock = inStock
+			return item
+		},
+	)
+	availabilityItemURLLens = L.MakeLens(
+		func(item AvailabilityItem) string { return item.URL },
+		func(item AvailabilityItem, url string) AvailabilityItem {
+			item.URL = url
+			return item
+		},
+	)
+	availabilityItemErrorLens = L.MakeLens(
+		func(item AvailabilityItem) string { return item.Error },
+		func(item AvailabilityItem, message string) AvailabilityItem {
+			item.Error = message
+			return item
+		},
+	)
+	availabilityReportItemsLens = L.MakeLens(
+		func(report AvailabilityReport) []AvailabilityItem { return report.Items },
+		func(report AvailabilityReport, items []AvailabilityItem) AvailabilityReport {
+			report.Items = items
+			return report
+		},
+	)
 	availabilityRoutes = map[string]availabilityRoute{
 		strainIDPrefix:  strainAvailability,
 		plasmidIDPrefix: plasmidAvailability,
 	}
-	toStockLookup = F.Curry3(
-		func(ctx context.Context, client *graphql.Client, id string) stockLookup {
-			return stockLookup{
-				ctx:    ctx,
-				client: client,
-				id:     id,
-			}
-		},
-	)
 )
 
-func toStrainAvailabilityItem(d graphql.StrainDetail) AvailabilityItem {
-	return AvailabilityItem{
-		ID:      d.ID,
-		Entity:  "strain",
-		Label:   d.Label,
-		InStock: d.InStock,
-		URL:     StrainURL(d.ID),
-	}
+func toStrainAvailabilityItem(links linkout.Links, d graphql.StrainDetail) AvailabilityItem {
+	id := strainDetailIDLens.Get(d)
+
+	return F.Pipe5(
+		AvailabilityItem{},
+		availabilityItemIDLens.Set(id),
+		availabilityItemEntityLens.Set(strainEntityName),
+		availabilityItemLabelLens.Set(strainDetailLabelLens.Get(d)),
+		availabilityItemInStockLens.Set(strainDetailInStockLens.Get(d)),
+		availabilityItemURLLens.Set(links.StrainURL(id)),
+	)
 }
 
-func toPlasmidAvailabilityItem(d graphql.PlasmidDetail) AvailabilityItem {
-	return AvailabilityItem{
-		ID:      d.ID,
-		Entity:  "plasmid",
-		Label:   d.Name,
-		InStock: d.InStock,
-		URL:     PlasmidURL(d.ID),
-	}
+func toPlasmidAvailabilityItem(links linkout.Links, d graphql.PlasmidDetail) AvailabilityItem {
+	id := plasmidDetailIDLens.Get(d)
+
+	return F.Pipe5(
+		AvailabilityItem{},
+		availabilityItemIDLens.Set(id),
+		availabilityItemEntityLens.Set(plasmidEntityName),
+		availabilityItemLabelLens.Set(plasmidDetailNameLens.Get(d)),
+		availabilityItemInStockLens.Set(plasmidDetailInStockLens.Get(d)),
+		availabilityItemURLLens.Set(links.PlasmidURL(id)),
+	)
 }
 
 func strainAvailability(l stockLookup) IOE.IOEither[error, AvailabilityItem] {
-	return F.Pipe2(
-		graphql.IDParams{Ctx: l.ctx, ID: l.id},
-		l.client.GetStrain,
-		IOE.Map[error](toStrainAvailabilityItem),
+	return F.Pipe4(
+		graphql.IDParams{},
+		idParamsCtxLens.Set(stockLookupCtxLens.Get(l)),
+		idParamsIDLens.Set(stockLookupIDLens.Get(l)),
+		stockLookupClientLens.Get(l).GetStrain,
+		IOE.Map[error](F.Bind1st(toStrainAvailabilityItem, stockLookupLinksLens.Get(l))),
 	)
 }
 
 func plasmidAvailability(l stockLookup) IOE.IOEither[error, AvailabilityItem] {
-	return F.Pipe2(
-		graphql.IDParams{Ctx: l.ctx, ID: l.id},
-		l.client.GetPlasmid,
-		IOE.Map[error](toPlasmidAvailabilityItem),
+	return F.Pipe4(
+		graphql.IDParams{},
+		idParamsCtxLens.Set(stockLookupCtxLens.Get(l)),
+		idParamsIDLens.Set(stockLookupIDLens.Get(l)),
+		stockLookupClientLens.Get(l).GetPlasmid,
+		IOE.Map[error](F.Bind1st(toPlasmidAvailabilityItem, stockLookupLinksLens.Get(l))),
 	)
 }
 
 // lookupAvailability never fails: lookup errors become an item with Error set.
 func lookupAvailability(l stockLookup) IOE.IOEither[error, AvailabilityItem] {
-	return F.Pipe3(
-		availabilityRoutes,
-		R.Lookup[availabilityRoute](IDPrefix(l.id)),
-		O.Fold(
-			func() IOE.IOEither[error, AvailabilityItem] {
-				return IOE.Left[AvailabilityItem](unknownIDError(l.id))
-			},
-			func(route availabilityRoute) IOE.IOEither[error, AvailabilityItem] { return route(l) },
-		),
-		IOE.OrElse(func(err error) IOE.IOEither[error, AvailabilityItem] {
-			return IOE.Of[error](AvailabilityItem{ID: l.id, Error: err.Error()})
-		}),
+	return F.Pipe4(
+		l,
+		IOE.Of[error, stockLookup],
+		IOE.ChainEitherK(F.Bind1st(
+			F.Pipe1(availabilityRoutes, F.Bind1of3(routeEffect[stockLookup, AvailabilityItem])),
+			stockLookupIDLens.Get,
+		)),
+		IOE.Flatten[error, AvailabilityItem],
+		IOE.OrElse(F.Flow4(
+			error.Error,
+			availabilityItemErrorLens.Set,
+			F.Bind1st(
+				F.Pipe1[func(AvailabilityItem) AvailabilityItem, AvailabilityItem, AvailabilityItem],
+				F.Pipe1(AvailabilityItem{}, availabilityItemIDLens.Set(stockLookupIDLens.Get(l))),
+			),
+			IOE.Of[error, AvailabilityItem],
+		)),
 	)
-}
-
-func toAvailabilityReport(items []AvailabilityItem) AvailabilityReport {
-	return AvailabilityReport{Items: items}
 }
 
 func newCheckAvailabilityHandler(
 	client *graphql.Client,
+	links linkout.Links,
 ) mcp.ToolHandlerFor[CheckAvailabilityInput, AvailabilityReport] {
 	return func(
 		ctx context.Context,
 		_ *mcp.CallToolRequest,
 		input CheckAvailabilityInput,
 	) (*mcp.CallToolResult, AvailabilityReport, error) {
-		lookupID := F.Flow2(F.Pipe1(client, toStockLookup(ctx)), lookupAvailability)
-		out := F.Pipe6(
+		out := F.Pipe7(
 			IOE.Of[error](input),
 			IOE.ChainEitherK(ValidateCheckAvailabilityInput),
 			IOE.Map[error](availabilityIDsLens.Get),
-			IOE.Chain(IOE.TraverseArrayPar(lookupID)),
-			IOE.Map[error](toAvailabilityReport),
+			IOE.Map[error](A.Map(F.Flow4(
+				F.Pipe1(stockLookup{}, F.Flip(stockLookupIDLens.Set)),
+				stockLookupCtxLens.Set(ctx),
+				stockLookupClientLens.Set(client),
+				stockLookupLinksLens.Set(links),
+			))),
+			IOE.Chain(IOE.TraverseArrayPar(lookupAvailability)),
+			IOE.Map[error](F.Pipe1(AvailabilityReport{}, F.Flip(availabilityReportItemsLens.Set))),
 			ioeutils.ToEither[error, AvailabilityReport],
 			E.Fold(
 				toOutcomeError[AvailabilityReport],

@@ -15,7 +15,7 @@ func TestCheckAvailability(t *testing.T) {
 	t.Run("mixed ids with one bad prefix", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
 			Name:      "check_availability",
-			Arguments: map[string]any{"ids": []string{testStrainID, " DBP0391806 ", "XYZ1", testStrainID}},
+			Arguments: map[string]any{testIDsKey: []string{testStrainID, " DBP0391806 ", "XYZ1", testStrainID}},
 		})
 		require.NoError(t, err)
 		require.False(t, res.IsError)
@@ -25,7 +25,7 @@ func TestCheckAvailability(t *testing.T) {
 		first := items[0].(map[string]any)
 		require.Equal(t, "strain", first["entity"])
 		require.Equal(t, true, first["in_stock"])
-		require.Equal(t, "https://dictycr.org/strains/DBS0350840", first["url"])
+		require.Equal(t, "https://dictybase.dev/stockcenter/strains/DBS0350840", first["url"])
 
 		require.Equal(t, "plasmid", items[1].(map[string]any)["entity"])
 		require.Contains(t, items[2].(map[string]any)["error"], "unrecognized stock id")
@@ -34,7 +34,7 @@ func TestCheckAvailability(t *testing.T) {
 	t.Run("empty list rejected", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
 			Name:      "check_availability",
-			Arguments: map[string]any{"ids": []string{" "}},
+			Arguments: map[string]any{testIDsKey: []string{" "}},
 		})
 		require.NoError(t, err)
 		require.True(t, res.IsError)

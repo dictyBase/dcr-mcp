@@ -5,6 +5,7 @@ import (
 
 	F "github.com/IBM/fp-go/v2/function"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
+	"github.com/dictybase/dcr-mcp/internal/linkout"
 	"github.com/dictybase/dcr-mcp/internal/tools"
 	"github.com/stretchr/testify/require"
 	"github.com/yuin/goldmark"
@@ -44,11 +45,11 @@ func TestRenderStrainMarkdown(t *testing.T) {
 			Authors: []graphql.AuthorRef{{LastName: testAuthorSmith}, {LastName: "Jones"}},
 		}},
 	}
-	md := F.Pipe2(detail, tools.StrainViewFor("summary"), tools.RenderStrainMarkdown)
+	md := F.Pipe2(detail, tools.StrainViewFor(linkout.Links{})("summary"), tools.RenderStrainMarkdown)
 
 	require.Contains(t, md, "## triA- (DBS0350840)")
 	require.Contains(t, md, "in stock")
-	require.Contains(t, md, "https://dictycr.org/strains/DBS0350840")
+	require.Contains(t, md, "https://dictybase.dev/stockcenter/strains/DBS0350840")
 	require.Contains(t, md, "axeA2; triA-")
 	require.Contains(t, md, "Phenotype term: aberrant spore morphology")
 	require.Contains(t, md, "environment: —")
@@ -65,14 +66,18 @@ func TestRenderStrainMarkdown(t *testing.T) {
 }
 
 func TestRenderStrainMarkdownEmptySections(t *testing.T) {
-	md := F.Pipe2(graphql.StrainDetail{ID: testShortStrainID}, tools.StrainViewFor("summary"), tools.RenderStrainMarkdown)
+	md := F.Pipe2(
+		graphql.StrainDetail{ID: testShortStrainID},
+		tools.StrainViewFor(linkout.Links{})("summary"),
+		tools.RenderStrainMarkdown,
+	)
 	require.Contains(t, md, "### Phenotypes\n\nNone recorded.")
 	require.Contains(t, md, "not in stock")
 	require.NotNil(t, parseKinds(t, md))
 }
 
 func TestRenderSearchMarkdown(t *testing.T) {
-	md := tools.RenderSearchMarkdown(tools.ToSearchResultView(graphql.SearchResult{
+	md := tools.RenderSearchMarkdown(tools.ToSearchResultView(linkout.Links{})(graphql.SearchResult{
 		Results: []graphql.StockSearchHit{{
 			ID: testShortStrainID, Entity: graphql.StockEntityStrain, Field: "SUMMARY",
 			DisplayText: "a | b", StockLabel: "x-", InStock: true, StockType: "regular",
@@ -83,7 +88,7 @@ func TestRenderSearchMarkdown(t *testing.T) {
 		Limit: 15, TotalCount: 2,
 	}))
 	require.Contains(t, md, "Showing 2 of 2 matches")
-	require.Contains(t, md, "[DBS1](https://dictycr.org/strains/DBS1)")
+	require.Contains(t, md, "[DBS1](https://dictybase.dev/stockcenter/strains/DBS1)")
 	require.Contains(t, md, `a \| b`)
 	require.Contains(t, md, "· gwdi")
 	require.NotContains(t, md, "· regular")
@@ -95,7 +100,7 @@ func TestRenderSearchMarkdown(t *testing.T) {
 func TestRenderPlasmidMarkdown(t *testing.T) {
 	md := F.Pipe2(
 		graphql.PlasmidDetail{ID: "DBP1", Name: "pX", Sequence: "ATGC", GenbankAccession: "AB123"},
-		tools.PlasmidViewFor("summary"),
+		tools.PlasmidViewFor(linkout.Links{})("summary"),
 		tools.RenderPlasmidMarkdown,
 	)
 	require.Contains(t, md, "## pX (DBP1)")
@@ -107,7 +112,7 @@ func TestRenderPlasmidMarkdown(t *testing.T) {
 func TestRenderEscapesUserText(t *testing.T) {
 	md := F.Pipe2(
 		graphql.StrainDetail{ID: testShortStrainID, Label: "a*b_[c]", Summary: "x | y"},
-		tools.StrainViewFor("summary"),
+		tools.StrainViewFor(linkout.Links{})("summary"),
 		tools.RenderStrainMarkdown,
 	)
 	require.Contains(t, md, `a\*b\_\[c\]`)
@@ -117,7 +122,7 @@ func TestRenderEscapesUserText(t *testing.T) {
 func TestRenderSeparatesBlocksWithBlankLines(t *testing.T) {
 	md := F.Pipe2(
 		graphql.StrainDetail{ID: testShortStrainID, Label: "x-", Summary: "s"},
-		tools.StrainViewFor("summary"),
+		tools.StrainViewFor(linkout.Links{})("summary"),
 		tools.RenderStrainMarkdown,
 	)
 	require.Contains(t, md, "## x- (DBS1)\n\ns\n\n- Availability:")
@@ -130,17 +135,17 @@ func TestRenderPublicationHasOneBullet(t *testing.T) {
 			ID: "1", Title: "T", Journal: "J", PubDate: "2006-12-01T00:00:00Z",
 			Authors: []graphql.AuthorRef{{LastName: testAuthorSmith}},
 		}}},
-		tools.StrainViewFor("summary"),
+		tools.StrainViewFor(linkout.Links{})("summary"),
 		tools.RenderStrainMarkdown,
 	)
-	require.Contains(t, md, "\n- Smith. T J (2006). [PubMed]")
+	require.Contains(t, md, "\n- Smith. T J (2006). [Publication](https://dictybase.dev/publication/1) · [PubMed]")
 	require.NotContains(t, md, "- - ")
 }
 
 func TestRenderEmptyFieldsUseDash(t *testing.T) {
 	md := F.Pipe2(
 		graphql.StrainDetail{ID: testShortStrainID},
-		tools.StrainViewFor("summary"),
+		tools.StrainViewFor(linkout.Links{})("summary"),
 		tools.RenderStrainMarkdown,
 	)
 	require.Contains(t, md, "- Species: —")
@@ -151,7 +156,7 @@ func TestRenderEmptyFieldsUseDash(t *testing.T) {
 func TestRenderEmptyLabelHasNoDoubleSpace(t *testing.T) {
 	md := F.Pipe2(
 		graphql.StrainDetail{ID: testShortStrainID},
-		tools.StrainViewFor("summary"),
+		tools.StrainViewFor(linkout.Links{})("summary"),
 		tools.RenderStrainMarkdown,
 	)
 	require.Contains(t, md, "## (DBS1)\n")
@@ -163,9 +168,12 @@ func TestRenderPublicationWithoutDOIDropsSeparator(t *testing.T) {
 			ID: "2", Title: "T", Journal: "J", PubDate: "2001",
 			Authors: []graphql.AuthorRef{{LastName: "Lee"}, {LastName: ""}},
 		}}},
-		tools.StrainViewFor("summary"),
+		tools.StrainViewFor(linkout.Links{})("summary"),
 		tools.RenderStrainMarkdown,
 	)
-	require.Contains(t, md, "- Lee. T J (2001). [PubMed](https://pubmed.ncbi.nlm.nih.gov/2/)\n")
+	require.Contains(t, md,
+		"- Lee. T J (2001). [Publication](https://dictybase.dev/publication/2) · "+
+			"[PubMed](https://pubmed.ncbi.nlm.nih.gov/2/)\n",
+	)
 	require.NotContains(t, md, "Lee, .")
 }

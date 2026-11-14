@@ -9,7 +9,10 @@ import (
 	"testing"
 
 	E "github.com/IBM/fp-go/v2/either"
+	F "github.com/IBM/fp-go/v2/function"
+	L "github.com/IBM/fp-go/v2/optics/lens"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
+	"github.com/dictybase/dcr-mcp/internal/linkout"
 	"github.com/dictybase/dcr-mcp/internal/tools"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/require"
@@ -21,6 +24,7 @@ type toolsStubRequest struct {
 }
 
 const (
+	testVersion       = "1.0.0"
 	testActQuery      = "act"
 	testBlankQuery    = "   "
 	testGrowthPheno   = "increased growth rate"
@@ -31,6 +35,31 @@ const (
 	testShortStrainID = "DBS1"
 	testStrainLabel   = "triA-"
 )
+
+var (
+	implNameLens = L.MakeLens(
+		func(impl mcp.Implementation) string { return impl.Name },
+		func(impl mcp.Implementation, name string) mcp.Implementation {
+			impl.Name = name
+			return impl
+		},
+	)
+	implVersionLens = L.MakeLens(
+		func(impl mcp.Implementation) string { return impl.Version },
+		func(impl mcp.Implementation, version string) mcp.Implementation {
+			impl.Version = version
+			return impl
+		},
+	)
+)
+
+func toImplementation(name, version string) *mcp.Implementation {
+	return new(F.Pipe2(
+		mcp.Implementation{},
+		implNameLens.Set(name),
+		implVersionLens.Set(version),
+	))
+}
 
 func TestValidateAutocompleteInput(t *testing.T) {
 	tests := []struct {
@@ -318,7 +347,7 @@ func serveToolsGraphQLStub(w http.ResponseWriter, req toolsStubRequest) {
 func serveToolsGeneStub(w http.ResponseWriter, req toolsStubRequest) {
 	switch {
 	case strings.Contains(req.Query, "geneGeneralInformation") &&
-		req.Variables["gene"] == "pkaC":
+		req.Variables[testGeneKey] == testGeneSymbol:
 		writeToolsJSON(w, `{
 			"data": {
 				"geneGeneralInformation": {
@@ -500,13 +529,37 @@ func serveToolsStockDetailStub(w http.ResponseWriter, req toolsStubRequest) {
 					"parent": {"id": "", "label": ""},
 					"depositor": {"first_name": "Dicty", "last_name": "Stock Center"},
 					"genes": [{"name": "triA"}],
-					"publications": [],
-					"phenotypes": []
+					"publications": [{
+						"id": "17177856",
+						"pub_date": "2006-12-01T00:00:00.000Z",
+						"title": "A paper",
+						"journal": "Differentiation",
+						"volume": "74",
+						"pages": "1-10",
+						"doi": "10.1111/x",
+						"authors": [{"last_name": "Smith"}]
+					}],
+					"phenotypes": [{
+						"phenotype": "aberrant spore morphology",
+						"note": "",
+						"assay": "",
+						"environment": "",
+						"publication": {
+							"id": "21760904",
+							"pub_date": "2011-07-07T00:00:00.000Z",
+							"title": "BzpN slows proliferation",
+							"journal": "PloS one",
+							"volume": "6",
+							"pages": "e21765",
+							"doi": "",
+							"authors": [{"last_name": "Phillips"}]
+						}
+					}]
 				}
 			}
 		}`)
 	case strings.Contains(req.Query, "plasmid(") &&
-		req.Variables["id"] == "DBP0000001":
+		req.Variables["id"] == testSequenceID:
 		writeToolsJSON(w, `{
 			"data": {
 				"plasmid": {
@@ -540,7 +593,16 @@ func serveToolsStockDetailStub(w http.ResponseWriter, req toolsStubRequest) {
 					"dbxrefs": [],
 					"depositor": {"first_name": "Gadi", "last_name": "Shaulsky"},
 					"genes": [],
-					"publications": []
+					"publications": [{
+						"id": "17177856",
+						"pub_date": "2006-12-01T00:00:00.000Z",
+						"title": "A paper",
+						"journal": "Differentiation",
+						"volume": "74",
+						"pages": "1-10",
+						"doi": "10.1111/x",
+						"authors": [{"last_name": "Smith"}]
+					}]
 				}
 			}
 		}`)
@@ -572,25 +634,30 @@ func serveToolsStockDetailStub(w http.ResponseWriter, req toolsStubRequest) {
 	}
 }
 
-func newToolsSession(t *testing.T) *mcp.ClientSession {
+func newToolsSessionWithLinks(t *testing.T, links linkout.Links) *mcp.ClientSession {
 	t.Helper()
 	gqlSrv := newToolsStubGraphQLServer(t)
 	t.Cleanup(gqlSrv.Close)
 
 	gqlClient := graphql.NewClient(gqlSrv.URL, gqlSrv.Client())
-	mcpSrv := mcp.NewServer(&mcp.Implementation{Name: "dcr-mcp", Version: "1.0.0"}, nil)
-	tools.RegisterAll(mcpSrv, gqlClient)
+	mcpSrv := mcp.NewServer(toImplementation("dcr-mcp", testVersion), nil)
+	tools.RegisterAll(mcpSrv, gqlClient, links)
 
 	ctx := context.Background()
 	t1, t2 := mcp.NewInMemoryTransports()
 	_, err := mcpSrv.Connect(ctx, t1, nil)
 	require.NoError(t, err)
 
-	mcpClient := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "1.0.0"}, nil)
+	mcpClient := mcp.NewClient(toImplementation("test-client", testVersion), nil)
 	session, err := mcpClient.Connect(ctx, t2, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = session.Close() })
 	return session
+}
+
+func newToolsSession(t *testing.T) *mcp.ClientSession {
+	t.Helper()
+	return newToolsSessionWithLinks(t, linkout.Links{})
 }
 
 func toolText(res *mcp.CallToolResult) string {
@@ -603,6 +670,28 @@ func toolText(res *mcp.CallToolResult) string {
 	return b.String()
 }
 
+func objectAt(t *testing.T, property any) map[string]any {
+	t.Helper()
+	schema, ok := property.(map[string]any)
+	require.True(t, ok)
+	return schema
+}
+
+func schemaProperties(t *testing.T, schema map[string]any) map[string]any {
+	t.Helper()
+	props, ok := schema["properties"].(map[string]any)
+	require.True(t, ok)
+	return props
+}
+
+func itemsOf(t *testing.T, property any) map[string]any {
+	t.Helper()
+	schema := objectAt(t, property)
+	items, ok := schema["items"].(map[string]any)
+	require.True(t, ok)
+	return items
+}
+
 func TestMCPToolsSession(t *testing.T) {
 	session := newToolsSession(t)
 	ctx := context.Background()
@@ -610,6 +699,41 @@ func TestMCPToolsSession(t *testing.T) {
 	listRes, err := session.ListTools(ctx, nil)
 	require.NoError(t, err)
 	require.Len(t, listRes.Tools, 12)
+
+	t.Run("output schemas hold one publications property", func(t *testing.T) {
+		res, err := session.ListTools(ctx, nil)
+		require.NoError(t, err)
+		schemas := map[string]map[string]any{}
+		for _, tool := range res.Tools {
+			schema, ok := tool.OutputSchema.(map[string]any)
+			require.True(t, ok, tool.Name)
+			schemas[tool.Name] = schema
+		}
+
+		strainProps := schemaProperties(t, schemas["get_strain"])
+		require.Contains(t, strainProps, "publications")
+		require.Contains(t, strainProps, "phenotypes")
+
+		paperProps := schemaProperties(t, itemsOf(t, strainProps["publications"]))
+		require.Contains(t, paperProps, "url")
+		require.Contains(t, paperProps, "journal")
+		require.Contains(t, paperProps, "authors")
+
+		phenotypeProps := schemaProperties(t, itemsOf(t, strainProps["phenotypes"]))
+		require.Contains(t, phenotypeProps, "publication")
+		nestedProps := schemaProperties(t, objectAt(t, phenotypeProps["publication"]))
+		require.Contains(t, nestedProps, "url")
+		require.Contains(t, nestedProps, "journal")
+
+		plasmidProps := schemaProperties(t, schemas["get_plasmid"])
+		require.Contains(t, plasmidProps, "publications")
+		require.Contains(t, schemaProperties(t, itemsOf(t, plasmidProps["publications"])), "url")
+
+		geneProps := schemaProperties(t, schemas["find_stocks_by_gene"])
+		geneRecordProps := schemaProperties(t, objectAt(t, geneProps["gene"]))
+		require.Contains(t, geneRecordProps, "url")
+		require.Contains(t, geneRecordProps, "gene_product")
+	})
 
 	t.Run("autocomplete_stocks", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
@@ -642,13 +766,13 @@ func TestMCPToolsSession(t *testing.T) {
 
 		structured, ok := res.StructuredContent.(map[string]any)
 		require.True(t, ok)
-		require.Equal(t, "https://dictycr.org/strains/DBS0350840", structured["url"])
+		require.Equal(t, "https://dictybase.dev/stockcenter/strains/DBS0350840", structured["url"])
 		require.Equal(t, "summary", structured["detail"])
 
 		require.NotEmpty(t, res.Content)
 		text, ok := res.Content[0].(*mcp.TextContent)
 		require.True(t, ok)
-		require.Contains(t, text.Text, "https://dictycr.org/strains/DBS0350840")
+		require.Contains(t, text.Text, "https://dictybase.dev/stockcenter/strains/DBS0350840")
 		require.Contains(t, text.Text, "## triA- (DBS0350840)")
 		require.NotNil(t, res.StructuredContent)
 	})
@@ -666,13 +790,13 @@ func TestMCPToolsSession(t *testing.T) {
 	t.Run("list_strains_with_phenotype", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
 			Name:      "list_strains_with_phenotype",
-			Arguments: map[string]any{"phenotype_term": testGrowthPheno},
+			Arguments: map[string]any{testPhenotypeKey: testGrowthPheno},
 		})
 		require.NoError(t, err)
 		require.False(t, res.IsError, "%s", toolText(res))
 		structured, ok := res.StructuredContent.(map[string]any)
 		require.True(t, ok)
-		require.Equal(t, testGrowthPheno, structured["phenotype_term"])
+		require.Equal(t, testGrowthPheno, structured[testPhenotypeKey])
 		require.EqualValues(t, 1, structured["page_count"])
 		require.Equal(t, true, structured["has_more"])
 		require.Contains(t, toolText(res), "More pages: yes")
@@ -681,7 +805,7 @@ func TestMCPToolsSession(t *testing.T) {
 	t.Run("list_strains_with_phenotype rejects an environment term", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
 			Name:      "list_strains_with_phenotype",
-			Arguments: map[string]any{"phenotype_term": "in suspension"},
+			Arguments: map[string]any{testPhenotypeKey: "in suspension"},
 		})
 		require.NoError(t, err)
 		require.True(t, res.IsError)
@@ -709,7 +833,7 @@ func TestMCPToolsSession(t *testing.T) {
 	t.Run("get_plasmid_sequence returns FASTA", func(t *testing.T) {
 		res, err := session.CallTool(ctx, &mcp.CallToolParams{
 			Name:      "get_plasmid_sequence",
-			Arguments: map[string]any{"id": "DBP0000001"},
+			Arguments: map[string]any{"id": testSequenceID},
 		})
 		require.NoError(t, err)
 		require.False(t, res.IsError)
