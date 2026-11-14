@@ -1054,10 +1054,11 @@ func searchHitURL(links linkout.Links, h graphql.StockSearchHit) string {
 func toSearchResultView(links linkout.Links, r graphql.SearchResult) SearchResultView {
 	return F.Pipe3(
 		SearchResultView{},
-		searchResultViewResultsLens.Set(F.Pipe2(
+		searchResultViewResultsLens.Set(F.Pipe3(
 			r,
 			searchResultResultsLens.Get,
 			A.Map(F.Bind1st(toSearchHitView, links)),
+			notNilSlice[SearchHitView],
 		)),
 		searchResultViewLimitLens.Set(searchResultLimitLens.Get(r)),
 		searchResultViewTotalLens.Set(searchResultTotalCountLens.Get(r)),

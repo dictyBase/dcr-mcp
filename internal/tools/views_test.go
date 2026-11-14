@@ -1,6 +1,7 @@
 package tools_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	F "github.com/IBM/fp-go/v2/function"
@@ -91,4 +92,13 @@ func TestSearchAndPhenotypeViews(t *testing.T) {
 	require.True(t, pheno.HasMore)
 	require.Equal(t, 1, pheno.PageCount)
 	require.Equal(t, testGrowthPheno, pheno.PhenotypeTerm)
+}
+
+func TestSearchResultViewEmptyMarshalsAsArray(t *testing.T) {
+	view := tools.ToSearchResultView(linkout.Links{})(graphql.SearchResult{Results: []graphql.StockSearchHit{}})
+	require.NotNil(t, view.Results)
+
+	out, err := json.Marshal(view)
+	require.NoError(t, err)
+	require.Contains(t, string(out), `"results":[]`)
 }
