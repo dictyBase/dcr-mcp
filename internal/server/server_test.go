@@ -22,34 +22,6 @@ import (
 const testVersion = "test"
 
 var (
-	cfgEndpointLens = L.MakeLens(
-		func(c server.Config) string { return c.GraphQLEndpoint },
-		func(c server.Config, endpoint string) server.Config {
-			c.GraphQLEndpoint = endpoint
-			return c
-		},
-	)
-	cfgStatelessLens = L.MakeLens(
-		func(c server.Config) bool { return c.Stateless },
-		func(c server.Config, stateless bool) server.Config {
-			c.Stateless = stateless
-			return c
-		},
-	)
-	cfgOriginsLens = L.MakeLens(
-		func(c server.Config) []string { return c.AllowedOrigins },
-		func(c server.Config, origins []string) server.Config {
-			c.AllowedOrigins = origins
-			return c
-		},
-	)
-	cfgLinkoutsLens = L.MakeLens(
-		func(c server.Config) linkout.Links { return c.Linkouts },
-		func(c server.Config, links linkout.Links) server.Config {
-			c.Linkouts = links
-			return c
-		},
-	)
 	transportEndpointLens = L.MakeLens(
 		func(tr mcp.StreamableClientTransport) string { return tr.Endpoint },
 		func(tr mcp.StreamableClientTransport, endpoint string) mcp.StreamableClientTransport {
@@ -112,10 +84,10 @@ func linkoutHandler(t *testing.T, endpoint string, links linkout.Links) *httptes
 	t.Helper()
 	httpSrv := httptest.NewServer(server.NewHTTPHandler(F.Pipe4(
 		server.Config{},
-		cfgEndpointLens.Set(endpoint),
-		cfgStatelessLens.Set(true),
-		cfgOriginsLens.Set([]string{"*"}),
-		cfgLinkoutsLens.Set(links),
+		server.ConfigEndpointLens.Set(endpoint),
+		server.ConfigStatelessLens.Set(true),
+		server.ConfigOriginsLens.Set([]string{"*"}),
+		server.ConfigLinkoutsLens.Set(links),
 	)))
 	t.Cleanup(httpSrv.Close)
 	return httpSrv

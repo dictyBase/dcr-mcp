@@ -6,6 +6,7 @@ import (
 	A "github.com/IBM/fp-go/v2/array"
 	E "github.com/IBM/fp-go/v2/either"
 	F "github.com/IBM/fp-go/v2/function"
+	I "github.com/IBM/fp-go/v2/identity"
 	IOE "github.com/IBM/fp-go/v2/ioeither"
 	L "github.com/IBM/fp-go/v2/optics/lens"
 	ioeutils "github.com/dictyBase/fp-go-loom/ioeitherutils"
@@ -178,19 +179,17 @@ func plasmidAvailability(l stockLookup) IOE.IOEither[error, AvailabilityItem] {
 
 // lookupAvailability never fails: lookup errors become an item with Error set.
 func lookupAvailability(l stockLookup) IOE.IOEither[error, AvailabilityItem] {
-	return F.Pipe4(
+	return F.Pipe2(
 		l,
-		IOE.Of[error, stockLookup],
-		IOE.ChainEitherK(F.Bind1st(
+		F.Bind1st(
 			F.Pipe1(availabilityRoutes, F.Bind1of3(routeEffect[stockLookup, AvailabilityItem])),
 			stockLookupIDLens.Get,
-		)),
-		IOE.Flatten[error, AvailabilityItem],
+		),
+		// Recover a failure as an item that has the ID and the error text.
 		IOE.OrElse(F.Flow4(
 			error.Error,
 			availabilityItemErrorLens.Set,
-			F.Bind1st(
-				F.Pipe1[func(AvailabilityItem) AvailabilityItem, AvailabilityItem, AvailabilityItem],
+			I.Flap[AvailabilityItem](
 				F.Pipe1(AvailabilityItem{}, availabilityItemIDLens.Set(stockLookupIDLens.Get(l))),
 			),
 			IOE.Of[error, AvailabilityItem],

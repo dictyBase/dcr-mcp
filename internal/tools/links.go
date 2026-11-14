@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	E "github.com/IBM/fp-go/v2/either"
 	F "github.com/IBM/fp-go/v2/function"
 	IOE "github.com/IBM/fp-go/v2/ioeither"
 	O "github.com/IBM/fp-go/v2/option"
@@ -14,9 +13,13 @@ import (
 	"github.com/dictybase/dcr-mcp/internal/linkout"
 )
 
-// stockRoute is a curried record-page builder: it takes the configured
-// website first and the raw record ID second.
-type stockRoute = func(linkout.Links) func(string) string
+type (
+	// stockRoute takes the configured website first and the raw record ID second.
+	stockRoute = func(linkout.Links) func(string) string
+
+	// stockEffect builds a lazy stock operation from its state.
+	stockEffect[S, A any] = func(S) IOE.IOEither[error, A]
+)
 
 const (
 	pubmedBaseURL = "https://pubmed.ncbi.nlm.nih.gov"
@@ -63,27 +66,31 @@ func IDPrefix(id string) string {
 	return strings.ToUpper(id[:min(len(id), stockIDPrefixLen)])
 }
 
-// routeEffect resolves the ID prefix of state to the lazy effect that
-// serves it, or to the unknown-ID error. The step is pure: O.Map applies
-// the found route to state, which builds an unexecuted IOEither, so no
-// GraphQL request runs here. check_availability and fetch both call it.
+// routeEffect selects a route, rejects unknown IDs, and applies the state.
+// The result is a lazy effect. This function does not execute it.
 func routeEffect[S, A any](
-	routes map[string]func(S) IOE.IOEither[error, A],
+	routes map[string]stockEffect[S, A],
 	idOf func(S) string,
 	state S,
-) E.Either[error, IOE.IOEither[error, A]] {
-	return F.Pipe3(
-		routes,
-		R.Lookup[func(S) IOE.IOEither[error, A]](F.Pipe2(state, idOf, IDPrefix)),
-		O.Map(F.Bind1st(
-			F.Pipe1[func(S) IOE.IOEither[error, A], S, IOE.IOEither[error, A]],
-			state,
-		)),
-		E.FromOption[IOE.IOEither[error, A]](
+) IOE.IOEither[error, A] {
+	return F.Pipe6(
+		state,    // Start with the state that contains the ID and request dependencies.
+		idOf,     // Extract the stock ID from the state.
+		IDPrefix, // Convert the first three characters to an uppercase route key.
+		// Bind routes as the first lookup argument. The prefix supplies the second.
+		// The lookup returns Some(route) for a known prefix, or None otherwise.
+		F.Bind1st(R.MonadLookup[stockEffect[S, A], string], routes),
+		// Convert Some(route) to a lazy Right(route), or None to a lazy Left(error).
+		IOE.FromOption[stockEffect[S, A]](
+			// Constant supplies this error when FromOption encounters None.
 			F.Constant(fmt.Errorf(
 				"unrecognized stock id %q: expected a DBS (strain) or DBP (plasmid) id",
-				idOf(state),
+				idOf(state), // Include the complete ID, not just its prefix.
 			)),
 		),
+		// Apply the selected route to state. A Left passes through unchanged.
+		IOE.Flap[error, IOE.IOEither[error, A]](state),
+		// Merge the route effect into the outer effect: IOEither[IOEither[A]] -> IOEither[A].
+		IOE.Flatten[error, A],
 	)
 }

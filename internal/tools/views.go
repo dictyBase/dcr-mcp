@@ -6,6 +6,7 @@ import (
 
 	A "github.com/IBM/fp-go/v2/array"
 	F "github.com/IBM/fp-go/v2/function"
+	I "github.com/IBM/fp-go/v2/identity"
 	M "github.com/IBM/fp-go/v2/monoid"
 	L "github.com/IBM/fp-go/v2/optics/lens"
 	O "github.com/IBM/fp-go/v2/option"
@@ -35,10 +36,10 @@ type (
 		graphql.PhenotypeItem
 		Publication PhenotypePublicationRefView `json:"publication"`
 	}
-	// strainViewFunc and plasmidViewFunc select one presentation for a detail level.
-	strainViewFunc = func(linkout.Links, graphql.StrainDetail) StrainView
+	// strainViewFunc and plasmidViewFunc take the links first and the record second.
+	strainViewFunc = func(linkout.Links) func(graphql.StrainDetail) StrainView
 
-	plasmidViewFunc = func(linkout.Links, graphql.PlasmidDetail) PlasmidView
+	plasmidViewFunc = func(linkout.Links) func(graphql.PlasmidDetail) PlasmidView
 	// StrainView is the get_strain output: the GraphQL record plus presentation fields.
 	StrainView struct {
 		Publications []PublicationRefView `json:"publications"`
@@ -738,12 +739,12 @@ var (
 	)
 
 	strainViews = map[string]strainViewFunc{
-		detailSummary: summaryStrainView,
-		detailFull:    fullStrainView,
+		detailSummary: F.Curry2(summaryStrainView),
+		detailFull:    F.Curry2(fullStrainView),
 	}
 	plasmidViews = map[string]plasmidViewFunc{
-		detailSummary: summaryPlasmidView,
-		detailFull:    fullPlasmidView,
+		detailSummary: F.Curry2(summaryPlasmidView),
+		detailFull:    F.Curry2(fullPlasmidView),
 	}
 
 	hasSequence = F.Pipe1(
@@ -754,9 +755,114 @@ var (
 	toMatchedTextView = F.Curry2(matchedTextView)
 
 	hasNextPage = P.IsNonZero[int64]()
+
+	strainViewGenotypesLens = L.MakeLens(
+		func(v StrainView) []string { return v.Genotypes },
+		func(v StrainView, value []string) StrainView {
+			v.Genotypes = value
+			return v
+		},
+	)
+	strainViewDepositorLens = L.MakeLens(
+		func(v StrainView) graphql.Depositor { return v.Depositor },
+		func(v StrainView, value graphql.Depositor) StrainView {
+			v.Depositor = value
+			return v
+		},
+	)
+	strainViewSummaryLens = L.MakeLens(
+		func(v StrainView) string { return v.Summary },
+		func(v StrainView, value string) StrainView {
+			v.Summary = value
+			return v
+		},
+	)
+	plasmidViewKeywordsLens = L.MakeLens(
+		func(v PlasmidView) []string { return v.Keywords },
+		func(v PlasmidView, value []string) PlasmidView {
+			v.Keywords = value
+			return v
+		},
+	)
+	plasmidViewDepositorLens = L.MakeLens(
+		func(v PlasmidView) graphql.Depositor { return v.Depositor },
+		func(v PlasmidView, value graphql.Depositor) PlasmidView {
+			v.Depositor = value
+			return v
+		},
+	)
+	plasmidViewSummaryLens = L.MakeLens(
+		func(v PlasmidView) string { return v.Summary },
+		func(v PlasmidView, value string) PlasmidView {
+			v.Summary = value
+			return v
+		},
+	)
+	searchHitViewIDLens = L.MakeLens(
+		func(v SearchHitView) string { return v.ID },
+		func(v SearchHitView, value string) SearchHitView {
+			v.ID = value
+			return v
+		},
+	)
+	searchHitViewStockLabelLens = L.MakeLens(
+		func(v SearchHitView) string { return v.StockLabel },
+		func(v SearchHitView, value string) SearchHitView {
+			v.StockLabel = value
+			return v
+		},
+	)
+	searchHitViewFieldLens = L.MakeLens(
+		func(v SearchHitView) string { return v.Field },
+		func(v SearchHitView, value string) SearchHitView {
+			v.Field = value
+			return v
+		},
+	)
+	searchHitViewDisplayTextLens = L.MakeLens(
+		func(v SearchHitView) string { return v.DisplayText },
+		func(v SearchHitView, value string) SearchHitView {
+			v.DisplayText = value
+			return v
+		},
+	)
+	searchHitViewInStockLens = L.MakeLens(
+		func(v SearchHitView) bool { return v.InStock },
+		func(v SearchHitView, value bool) SearchHitView {
+			v.InStock = value
+			return v
+		},
+	)
+	searchHitViewStockTypeLens = L.MakeLens(
+		func(v SearchHitView) string { return v.StockType },
+		func(v SearchHitView, value string) SearchHitView {
+			v.StockType = value
+			return v
+		},
+	)
+	phenotypeStrainViewIDLens = L.MakeLens(
+		func(v PhenotypeStrainView) string { return v.ID },
+		func(v PhenotypeStrainView, value string) PhenotypeStrainView {
+			v.ID = value
+			return v
+		},
+	)
+	phenotypeStrainViewLabelLens = L.MakeLens(
+		func(v PhenotypeStrainView) string { return v.Label },
+		func(v PhenotypeStrainView, value string) PhenotypeStrainView {
+			v.Label = value
+			return v
+		},
+	)
+	phenotypeStrainViewInStockLens = L.MakeLens(
+		func(v PhenotypeStrainView) bool { return v.InStock },
+		func(v PhenotypeStrainView, value bool) PhenotypeStrainView {
+			v.InStock = value
+			return v
+		},
+	)
 )
 
-// takeAtMost keeps the first n items and never returns nil, so JSON emits [] not null.
 func toPublicationRefView(links linkout.Links, p graphql.PublicationRef) PublicationRefView {
 	return F.Pipe2(
 		PublicationRefView{},
@@ -783,13 +889,35 @@ func toPhenotypeItemView(links linkout.Links, p graphql.PhenotypeItem) Phenotype
 	)
 }
 
-func takeAtMost[T any](n int) func([]T) []T {
-	hasElem := predarrays.IsNonEmpty[T]()
-	return F.Flow3(
-		A.Slice[T](0, n),
-		O.FromPredicate(hasElem),
-		O.GetOrElse(func() []T { return make([]T, 0) }),
+// publicationRefViewsOrEmpty converts papers to views with local URLs. It
+// returns [], not nil, for no papers.
+func publicationRefViewsOrEmpty(
+	links linkout.Links,
+	papers []graphql.PublicationRef,
+) []PublicationRefView {
+	return F.Pipe2(
+		papers,
+		A.Map(F.Bind1st(toPublicationRefView, links)),
+		notNilSlice[PublicationRefView],
 	)
+}
+
+// phenotypeItemViewsOrEmpty converts phenotypes to views with local URLs. It
+// returns [], not nil, for no phenotypes.
+func phenotypeItemViewsOrEmpty(
+	links linkout.Links,
+	phenotypes []graphql.PhenotypeItem,
+) []PhenotypeItemView {
+	return F.Pipe2(
+		phenotypes,
+		A.Map(F.Bind1st(toPhenotypeItemView, links)),
+		notNilSlice[PhenotypeItemView],
+	)
+}
+
+// takeAtMost keeps the first n items and never returns nil, so JSON emits [] not null.
+func takeAtMost[T any](n int) func([]T) []T {
+	return F.Flow2(A.Slice[T](0, n), notNilSlice[T])
 }
 
 func emptySlice[T any]() []T { return make([]T, 0) }
@@ -816,16 +944,8 @@ func fullStrainView(links linkout.Links, d graphql.StrainDetail) StrainView {
 		strainViewDetailLens.Set(detailFull),
 		strainViewPhenotypeCountLens.Set(A.Size(phenotypes)),
 		strainViewPublicationCountLens.Set(A.Size(papers)),
-		strainViewPhenotypesLens.Set(F.Pipe2(
-			phenotypes,
-			A.Map(F.Bind1st(toPhenotypeItemView, links)),
-			notNilSlice[PhenotypeItemView],
-		)),
-		strainViewPublicationsLens.Set(F.Pipe2(
-			papers,
-			A.Map(F.Bind1st(toPublicationRefView, links)),
-			notNilSlice[PublicationRefView],
-		)),
+		strainViewPhenotypesLens.Set(F.Pipe1(phenotypes, F.Bind1st(phenotypeItemViewsOrEmpty, links))),
+		strainViewPublicationsLens.Set(F.Pipe1(papers, F.Bind1st(publicationRefViewsOrEmpty, links))),
 	)
 }
 
@@ -833,19 +953,17 @@ func summaryStrainView(links linkout.Links, d graphql.StrainDetail) StrainView {
 	return F.Pipe3(
 		fullStrainView(links, d),
 		strainViewDetailLens.Set(detailSummary),
-		strainViewPhenotypesLens.Set(F.Pipe4(
+		strainViewPhenotypesLens.Set(F.Pipe3(
 			d,
 			strainDetailPhenotypesLens.Get,
 			takeAtMost[graphql.PhenotypeItem](summaryPhenotypeCap),
-			A.Map(F.Bind1st(toPhenotypeItemView, links)),
-			notNilSlice[PhenotypeItemView],
+			F.Bind1st(phenotypeItemViewsOrEmpty, links),
 		)),
-		strainViewPublicationsLens.Set(F.Pipe4(
+		strainViewPublicationsLens.Set(F.Pipe3(
 			d,
 			strainDetailPublicationsLens.Get,
 			takeAtMost[graphql.PublicationRef](summaryPublicationCap),
-			A.Map(F.Bind1st(toPublicationRefView, links)),
-			notNilSlice[PublicationRefView],
+			F.Bind1st(publicationRefViewsOrEmpty, links),
 		)),
 	)
 }
@@ -854,8 +972,9 @@ func strainViewFor(links linkout.Links, detail string) func(graphql.StrainDetail
 	return F.Pipe3(
 		strainViews,
 		R.Lookup[strainViewFunc](detail),
-		O.GetOrElse(F.Constant(summaryStrainView)),
-		F.Bind2nd(F.Bind1st[linkout.Links, graphql.StrainDetail, StrainView], links),
+		O.GetOrElse(F.Constant(F.Curry2(summaryStrainView))),
+		// Apply the selected view to links. The result takes the strain record.
+		I.Flap[func(graphql.StrainDetail) StrainView](links),
 	)
 }
 
@@ -869,11 +988,7 @@ func fullPlasmidView(links linkout.Links, d graphql.PlasmidDetail) PlasmidView {
 		plasmidViewDetailLens.Set(detailFull),
 		plasmidViewSequenceLengthLens.Set(F.Pipe2(d, plasmidDetailSequenceLens.Get, S.Size)),
 		plasmidViewPublicationCountLens.Set(A.Size(papers)),
-		plasmidViewPublicationsLens.Set(F.Pipe2(
-			papers,
-			A.Map(F.Bind1st(toPublicationRefView, links)),
-			notNilSlice[PublicationRefView],
-		)),
+		plasmidViewPublicationsLens.Set(F.Pipe1(papers, F.Bind1st(publicationRefViewsOrEmpty, links))),
 	)
 }
 
@@ -882,12 +997,11 @@ func summaryPlasmidView(links linkout.Links, d graphql.PlasmidDetail) PlasmidVie
 		fullPlasmidView(links, d),
 		plasmidViewDetailLens.Set(detailSummary),
 		plasmidViewRecordSequenceLens.Set(S.Monoid.Empty()),
-		plasmidViewPublicationsLens.Set(F.Pipe4(
+		plasmidViewPublicationsLens.Set(F.Pipe3(
 			d,
 			plasmidDetailPublicationsLens.Get,
 			takeAtMost[graphql.PublicationRef](summaryPublicationCap),
-			A.Map(F.Bind1st(toPublicationRefView, links)),
-			notNilSlice[PublicationRefView],
+			F.Bind1st(publicationRefViewsOrEmpty, links),
 		)),
 	)
 }
@@ -896,8 +1010,9 @@ func plasmidViewFor(links linkout.Links, detail string) func(graphql.PlasmidDeta
 	return F.Pipe3(
 		plasmidViews,
 		R.Lookup[plasmidViewFunc](detail),
-		O.GetOrElse(F.Constant(summaryPlasmidView)),
-		F.Bind2nd(F.Bind1st[linkout.Links, graphql.PlasmidDetail, PlasmidView], links),
+		O.GetOrElse(F.Constant(F.Curry2(summaryPlasmidView))),
+		// Apply the selected view to links. The result takes the plasmid record.
+		I.Flap[func(graphql.PlasmidDetail) PlasmidView](links),
 	)
 }
 

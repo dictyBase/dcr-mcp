@@ -82,35 +82,56 @@ var (
 			return opts
 		},
 	)
-	cfgEndpointLens = L.MakeLens(
+	// ConfigHostLens focuses Config.Host.
+	ConfigHostLens = L.MakeLens(
+		func(c Config) string { return c.Host },
+		func(c Config, host string) Config {
+			c.Host = host
+			return c
+		},
+	)
+	// ConfigPortLens focuses Config.Port.
+	ConfigPortLens = L.MakeLens(
+		func(c Config) int { return c.Port },
+		func(c Config, port int) Config {
+			c.Port = port
+			return c
+		},
+	)
+	// ConfigEndpointLens focuses Config.GraphQLEndpoint.
+	ConfigEndpointLens = L.MakeLens(
 		func(c Config) string { return c.GraphQLEndpoint },
 		func(c Config, endpoint string) Config {
 			c.GraphQLEndpoint = endpoint
 			return c
 		},
 	)
-	cfgStatelessLens = L.MakeLens(
+	// ConfigStatelessLens focuses Config.Stateless.
+	ConfigStatelessLens = L.MakeLens(
 		func(c Config) bool { return c.Stateless },
 		func(c Config, stateless bool) Config {
 			c.Stateless = stateless
 			return c
 		},
 	)
-	cfgOriginsLens = L.MakeLens(
+	// ConfigOriginsLens focuses Config.AllowedOrigins.
+	ConfigOriginsLens = L.MakeLens(
 		func(c Config) []string { return c.AllowedOrigins },
 		func(c Config, origins []string) Config {
 			c.AllowedOrigins = origins
 			return c
 		},
 	)
-	cfgRateLimitLens = L.MakeLens(
+	// ConfigRateLimitLens focuses Config.RateLimit.
+	ConfigRateLimitLens = L.MakeLens(
 		func(c Config) int { return c.RateLimit },
 		func(c Config, limit int) Config {
 			c.RateLimit = limit
 			return c
 		},
 	)
-	cfgLinkoutsLens = L.MakeLens(
+	// ConfigLinkoutsLens focuses Config.Linkouts.
+	ConfigLinkoutsLens = L.MakeLens(
 		func(c Config) linkout.Links { return c.Linkouts },
 		func(c Config, links linkout.Links) Config {
 			c.Linkouts = links
@@ -226,23 +247,23 @@ func clientIPKey(r *http.Request) (string, error) {
 
 // NewHTTPHandler constructs the chi router serving /healthz and /mcp (Streamable HTTP + chi middlewares).
 func NewHTTPHandler(cfg Config) http.Handler {
-	gqlClient := graphql.NewClient(cfgEndpointLens.Get(cfg), nil)
+	gqlClient := graphql.NewClient(ConfigEndpointLens.Get(cfg), nil)
 
-	mcpSrv := NewMCPServer(gqlClient, cfgLinkoutsLens.Get(cfg))
+	mcpSrv := NewMCPServer(gqlClient, ConfigLinkoutsLens.Get(cfg))
 	streamHandler := mcp.NewStreamableHTTPHandler(
 		func(*http.Request) *mcp.Server { return mcpSrv },
 		new(F.Pipe4(
 			mcp.StreamableHTTPOptions{},
-			streamStatelessLens.Set(cfgStatelessLens.Get(cfg)),
+			streamStatelessLens.Set(ConfigStatelessLens.Get(cfg)),
 			streamJSONResponseLens.Set(true),
 			streamLocalhostLens.Set(true),
 			streamCancellationLens.Set(true),
 		)),
 	)
 
-	corsMiddleware := newCORSHandler(cfgOriginsLens.Get(cfg))
+	corsMiddleware := newCORSHandler(ConfigOriginsLens.Get(cfg))
 	rateLimiter := httprate.LimitBy(
-		resolveRateLimit(cfgRateLimitLens.Get(cfg)),
+		resolveRateLimit(ConfigRateLimitLens.Get(cfg)),
 		rateLimitWindow,
 		clientIPKey,
 	)

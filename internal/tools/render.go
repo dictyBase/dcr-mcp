@@ -8,7 +8,6 @@ import (
 	A "github.com/IBM/fp-go/v2/array"
 	E "github.com/IBM/fp-go/v2/either"
 	F "github.com/IBM/fp-go/v2/function"
-	L "github.com/IBM/fp-go/v2/optics/lens"
 	O "github.com/IBM/fp-go/v2/option"
 	P "github.com/IBM/fp-go/v2/predicate"
 	S "github.com/IBM/fp-go/v2/string"
@@ -33,111 +32,6 @@ const (
 )
 
 var (
-	renderStrainViewGenotypesLens = L.MakeLens(
-		func(v StrainView) []string { return v.Genotypes },
-		func(v StrainView, value []string) StrainView {
-			v.Genotypes = value
-			return v
-		},
-	)
-	renderStrainViewDepositorLens = L.MakeLens(
-		func(v StrainView) graphql.Depositor { return v.Depositor },
-		func(v StrainView, value graphql.Depositor) StrainView {
-			v.Depositor = value
-			return v
-		},
-	)
-	renderStrainViewSummaryLens = L.MakeLens(
-		func(v StrainView) string { return v.Summary },
-		func(v StrainView, value string) StrainView {
-			v.Summary = value
-			return v
-		},
-	)
-	renderPlasmidViewKeywordsLens = L.MakeLens(
-		func(v PlasmidView) []string { return v.Keywords },
-		func(v PlasmidView, value []string) PlasmidView {
-			v.Keywords = value
-			return v
-		},
-	)
-	renderPlasmidViewDepositorLens = L.MakeLens(
-		func(v PlasmidView) graphql.Depositor { return v.Depositor },
-		func(v PlasmidView, value graphql.Depositor) PlasmidView {
-			v.Depositor = value
-			return v
-		},
-	)
-	renderPlasmidViewSummaryLens = L.MakeLens(
-		func(v PlasmidView) string { return v.Summary },
-		func(v PlasmidView, value string) PlasmidView {
-			v.Summary = value
-			return v
-		},
-	)
-	renderSearchHitViewIDLens = L.MakeLens(
-		func(v SearchHitView) string { return v.ID },
-		func(v SearchHitView, value string) SearchHitView {
-			v.ID = value
-			return v
-		},
-	)
-	renderSearchHitViewStockLabelLens = L.MakeLens(
-		func(v SearchHitView) string { return v.StockLabel },
-		func(v SearchHitView, value string) SearchHitView {
-			v.StockLabel = value
-			return v
-		},
-	)
-	renderSearchHitViewFieldLens = L.MakeLens(
-		func(v SearchHitView) string { return v.Field },
-		func(v SearchHitView, value string) SearchHitView {
-			v.Field = value
-			return v
-		},
-	)
-	renderSearchHitViewDisplayTextLens = L.MakeLens(
-		func(v SearchHitView) string { return v.DisplayText },
-		func(v SearchHitView, value string) SearchHitView {
-			v.DisplayText = value
-			return v
-		},
-	)
-	renderSearchHitViewInStockLens = L.MakeLens(
-		func(v SearchHitView) bool { return v.InStock },
-		func(v SearchHitView, value bool) SearchHitView {
-			v.InStock = value
-			return v
-		},
-	)
-	renderSearchHitViewStockTypeLens = L.MakeLens(
-		func(v SearchHitView) string { return v.StockType },
-		func(v SearchHitView, value string) SearchHitView {
-			v.StockType = value
-			return v
-		},
-	)
-	renderPhenotypeStrainViewIDLens = L.MakeLens(
-		func(v PhenotypeStrainView) string { return v.ID },
-		func(v PhenotypeStrainView, value string) PhenotypeStrainView {
-			v.ID = value
-			return v
-		},
-	)
-	renderPhenotypeStrainViewLabelLens = L.MakeLens(
-		func(v PhenotypeStrainView) string { return v.Label },
-		func(v PhenotypeStrainView, value string) PhenotypeStrainView {
-			v.Label = value
-			return v
-		},
-	)
-	renderPhenotypeStrainViewInStockLens = L.MakeLens(
-		func(v PhenotypeStrainView) bool { return v.InStock },
-		func(v PhenotypeStrainView, value bool) PhenotypeStrainView {
-			v.InStock = value
-			return v
-		},
-	)
 	// publicationLink is the local publication link, or empty for a record
 	// without an ID.
 	publicationLink   = strutils.MapNonEmpty(F.Bind1st(md.Link, "Publication"))
@@ -304,8 +198,8 @@ func strainSummaryItems(v StrainView) []string {
 	return []string{
 		strutils.Label.Concat("Availability", availabilityLabel[strainViewInStockLens.Get(v)]),
 		strutils.Label.Concat("Species", valueOrDash(strainViewSpeciesLens.Get(v))),
-		strutils.Label.Concat("Genotype", F.Pipe2(renderStrainViewGenotypesLens.Get(v), strutils.JoinSemicolon, valueOrDash)),
-		strutils.Label.Concat("Depositor", fullName(renderStrainViewDepositorLens.Get(v))),
+		strutils.Label.Concat("Genotype", F.Pipe2(strainViewGenotypesLens.Get(v), strutils.JoinSemicolon, valueOrDash)),
+		strutils.Label.Concat("Depositor", fullName(strainViewDepositorLens.Get(v))),
 		strutils.Label.Concat("Stock page", md.Link(strainViewIDLens.Get(v), strainViewURLLens.Get(v))),
 	}
 }
@@ -313,7 +207,7 @@ func strainSummaryItems(v StrainView) []string {
 func strainDoc(v StrainView) mdfp.Block {
 	return mdfp.Concat([]mdfp.Block{
 		heading(strainViewLabelLens.Get(v), strainViewIDLens.Get(v)),
-		mdfp.Paragraph(oneLine(renderStrainViewSummaryLens.Get(v))),
+		mdfp.Paragraph(oneLine(strainViewSummaryLens.Get(v))),
 		mdfp.BulletList(strainSummaryItems(v)),
 		section(phenotypeHeader, phenotypeItems(strainViewPhenotypesLens.Get(v))),
 		section(paperHeader, paperItems(strainViewPublicationsLens.Get(v))),
@@ -331,10 +225,10 @@ func strainDoc(v StrainView) mdfp.Block {
 func plasmidSummaryItems(v PlasmidView) []string {
 	return []string{
 		strutils.Label.Concat("Availability", availabilityLabel[plasmidViewInStockLens.Get(v)]),
-		strutils.Label.Concat("Keywords", F.Pipe2(renderPlasmidViewKeywordsLens.Get(v), strutils.JoinComma, valueOrDash)),
+		strutils.Label.Concat("Keywords", F.Pipe2(plasmidViewKeywordsLens.Get(v), strutils.JoinComma, valueOrDash)),
 		strutils.Label.Concat("GenBank", valueOrDash(plasmidViewGenbankLens.Get(v))),
 		strutils.Label.Concat("Sequence", sequenceText(plasmidViewSequenceLengthLens.Get(v))),
-		strutils.Label.Concat("Depositor", fullName(renderPlasmidViewDepositorLens.Get(v))),
+		strutils.Label.Concat("Depositor", fullName(plasmidViewDepositorLens.Get(v))),
 		strutils.Label.Concat("Stock page", md.Link(plasmidViewIDLens.Get(v), plasmidViewURLLens.Get(v))),
 	}
 }
@@ -342,7 +236,7 @@ func plasmidSummaryItems(v PlasmidView) []string {
 func plasmidDoc(v PlasmidView) mdfp.Block {
 	return mdfp.Concat([]mdfp.Block{
 		heading(plasmidViewNameLens.Get(v), plasmidViewIDLens.Get(v)),
-		mdfp.Paragraph(oneLine(renderPlasmidViewSummaryLens.Get(v))),
+		mdfp.Paragraph(oneLine(plasmidViewSummaryLens.Get(v))),
 		mdfp.BulletList(plasmidSummaryItems(v)),
 		section(paperHeader, paperItems(plasmidViewPublicationsLens.Get(v))),
 	})
@@ -350,15 +244,15 @@ func plasmidDoc(v PlasmidView) mdfp.Block {
 
 func searchItem(h SearchHitView) string {
 	return strutils.EmDash.Concat(
-		md.Link(renderSearchHitViewIDLens.Get(h), searchHitViewURLLens.Get(h)),
+		md.Link(searchHitViewIDLens.Get(h), searchHitViewURLLens.Get(h)),
 		strutils.JoinMiddleDot([]string{
-			oneLine(renderSearchHitViewStockLabelLens.Get(h)),
+			oneLine(searchHitViewStockLabelLens.Get(h)),
 			strutils.Label.Concat(
-				oneLine(renderSearchHitViewFieldLens.Get(h)),
-				oneLine(renderSearchHitViewDisplayTextLens.Get(h)),
+				oneLine(searchHitViewFieldLens.Get(h)),
+				oneLine(searchHitViewDisplayTextLens.Get(h)),
 			),
-			availabilityLabel[renderSearchHitViewInStockLens.Get(h)],
-			stockTypeTag(renderSearchHitViewStockTypeLens.Get(h)),
+			availabilityLabel[searchHitViewInStockLens.Get(h)],
+			stockTypeTag(searchHitViewStockTypeLens.Get(h)),
 		}),
 	)
 }
@@ -394,10 +288,10 @@ func phenotypeSearchDoc(v PhenotypeSearchView) mdfp.Block {
 
 func phenotypeStrainItem(s PhenotypeStrainView) string {
 	return strutils.EmDash.Concat(
-		md.Link(renderPhenotypeStrainViewIDLens.Get(s), phenotypeStrainViewURLLens.Get(s)),
+		md.Link(phenotypeStrainViewIDLens.Get(s), phenotypeStrainViewURLLens.Get(s)),
 		strutils.MiddleDot.Concat(
-			oneLine(renderPhenotypeStrainViewLabelLens.Get(s)),
-			availabilityLabel[renderPhenotypeStrainViewInStockLens.Get(s)],
+			oneLine(phenotypeStrainViewLabelLens.Get(s)),
+			availabilityLabel[phenotypeStrainViewInStockLens.Get(s)],
 		),
 	)
 }
