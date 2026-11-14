@@ -3,7 +3,7 @@ module github.com/dictybase/dcr-mcp
 go 1.26.8
 
 require (
-	github.com/IBM/fp-go/v2 v2.13.1
+	github.com/IBM/fp-go/v2 v2.13.2
 	github.com/dictyBase/fp-go-loom v0.5.0
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-chi/cors v1.2.2
