@@ -203,7 +203,7 @@ func newChatGPTSearchHandler(
 				searchLimitLens.Set(chatgptSearchLimit),
 			)),
 			IOE.ChainEitherK(ValidateSearchInput),
-			IOE.Map[error](toSearchParams(ctx)),
+			IOE.Map[error](F.Bind1st(toSearchParams, ctx)),
 			IOE.Chain(client.SearchStocks),
 			IOE.Map[error](F.Bind1st(toSearchDocuments, links)),
 			ioeutils.ToEither[error, SearchDocuments],

@@ -61,6 +61,48 @@ const (
 )
 
 var (
+	corsAllowedOriginsLens = L.MakeLens(
+		func(x cors.Options) []string { return x.AllowedOrigins },
+		func(x cors.Options, value []string) cors.Options {
+			x.AllowedOrigins = value
+			return x
+		},
+	)
+	corsAllowedMethodsLens = L.MakeLens(
+		func(x cors.Options) []string { return x.AllowedMethods },
+		func(x cors.Options, value []string) cors.Options {
+			x.AllowedMethods = value
+			return x
+		},
+	)
+	corsAllowedHeadersLens = L.MakeLens(
+		func(x cors.Options) []string { return x.AllowedHeaders },
+		func(x cors.Options, value []string) cors.Options {
+			x.AllowedHeaders = value
+			return x
+		},
+	)
+	corsExposedHeadersLens = L.MakeLens(
+		func(x cors.Options) []string { return x.ExposedHeaders },
+		func(x cors.Options, value []string) cors.Options {
+			x.ExposedHeaders = value
+			return x
+		},
+	)
+	corsAllowCredentialsLens = L.MakeLens(
+		func(x cors.Options) bool { return x.AllowCredentials },
+		func(x cors.Options, value bool) cors.Options {
+			x.AllowCredentials = value
+			return x
+		},
+	)
+	corsMaxAgeLens = L.MakeLens(
+		func(x cors.Options) int { return x.MaxAge },
+		func(x cors.Options, value int) cors.Options {
+			x.MaxAge = value
+			return x
+		},
+	)
 	implNameLens = L.MakeLens(
 		func(impl mcp.Implementation) string { return impl.Name },
 		func(impl mcp.Implementation, name string) mcp.Implementation {
@@ -188,39 +230,40 @@ func NewMCPServer(client *graphql.Client, links linkout.Links) *mcp.Server {
 }
 
 func normalizeOrigins(origins []string) []string {
-	hasOrigins := predarrays.IsNonEmpty[string]()
 	return F.Pipe3(
 		origins,
 		A.Map(strings.TrimSpace),
-		O.FromPredicate(hasOrigins),
+		O.FromPredicate(predarrays.IsNonEmpty[string]()),
 		O.GetOrElse(F.Constant([]string{wildcardOrigin})),
 	)
 }
 
 func newCORSHandler(allowedOrigins []string) func(http.Handler) http.Handler {
-	return cors.Handler(cors.Options{
-		AllowedOrigins: normalizeOrigins(allowedOrigins),
-		AllowedMethods: []string{
+	return F.Pipe7(
+		cors.Options{},
+		corsAllowedOriginsLens.Set(normalizeOrigins(allowedOrigins)),
+		corsAllowedMethodsLens.Set([]string{
 			http.MethodGet,
 			http.MethodPost,
 			http.MethodDelete,
 			http.MethodOptions,
-		},
-		AllowedHeaders: []string{
+		}),
+		corsAllowedHeadersLens.Set([]string{
 			"Accept",
 			"Authorization",
 			"Content-Type",
 			"Last-Event-ID",
 			"Mcp-Session-Id",
 			"MCP-Protocol-Version",
-		},
-		ExposedHeaders: []string{
+		}),
+		corsExposedHeadersLens.Set([]string{
 			"Mcp-Session-Id",
 			"MCP-Protocol-Version",
-		},
-		AllowCredentials: true,
-		MaxAge:           corsMaxAgeSeconds,
-	})
+		}),
+		corsAllowCredentialsLens.Set(true),
+		corsMaxAgeLens.Set(corsMaxAgeSeconds),
+		cors.Handler,
+	)
 }
 
 func healthzHandler(w http.ResponseWriter, _ *http.Request) {

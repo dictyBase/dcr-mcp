@@ -3,6 +3,8 @@ package graphql
 
 import (
 	"context"
+	L "github.com/IBM/fp-go/v2/optics/lens"
+	"github.com/hashicorp/golang-lru/v2/expirable"
 
 	A "github.com/IBM/fp-go/v2/array"
 	F "github.com/IBM/fp-go/v2/function"
@@ -324,6 +326,97 @@ const (
 )
 
 var (
+	autocompleteResultSuggestionsLens = L.MakeLens(
+		func(x AutocompleteResult) []StockSuggestion { return x.Suggestions },
+		func(x AutocompleteResult, value []StockSuggestion) AutocompleteResult {
+			x.Suggestions = value
+			return x
+		},
+	)
+	autocompleteResultLimitLens = L.MakeLens(
+		func(x AutocompleteResult) int { return x.Limit },
+		func(x AutocompleteResult, value int) AutocompleteResult {
+			x.Limit = value
+			return x
+		},
+	)
+	autocompleteResultTotalCountLens = L.MakeLens(
+		func(x AutocompleteResult) int { return x.TotalCount },
+		func(x AutocompleteResult, value int) AutocompleteResult {
+			x.TotalCount = value
+			return x
+		},
+	)
+	searchResultResultsLens = L.MakeLens(
+		func(x SearchResult) []StockSearchHit { return x.Results },
+		func(x SearchResult, value []StockSearchHit) SearchResult {
+			x.Results = value
+			return x
+		},
+	)
+	searchResultLimitLens = L.MakeLens(
+		func(x SearchResult) int { return x.Limit },
+		func(x SearchResult, value int) SearchResult {
+			x.Limit = value
+			return x
+		},
+	)
+	searchResultTotalCountLens = L.MakeLens(
+		func(x SearchResult) int { return x.TotalCount },
+		func(x SearchResult, value int) SearchResult {
+			x.TotalCount = value
+			return x
+		},
+	)
+	phenotypeStrainListStrainsLens = L.MakeLens(
+		func(x PhenotypeStrainList) []PhenotypeStrainItem { return x.Strains },
+		func(x PhenotypeStrainList, value []PhenotypeStrainItem) PhenotypeStrainList {
+			x.Strains = value
+			return x
+		},
+	)
+	phenotypeStrainListNextCursorLens = L.MakeLens(
+		func(x PhenotypeStrainList) int64 { return x.NextCursor },
+		func(x PhenotypeStrainList, value int64) PhenotypeStrainList {
+			x.NextCursor = value
+			return x
+		},
+	)
+	clientGQLLens = L.MakeLens(
+		func(x Client) *hasuragql.Client { return x.gql },
+		func(x Client, value *hasuragql.Client) Client {
+			x.gql = value
+			return x
+		},
+	)
+	clientStrainCacheLens = L.MakeLens(
+		func(x Client) *expirable.LRU[string, StrainDetail] { return x.strainCache },
+		func(x Client, value *expirable.LRU[string, StrainDetail]) Client {
+			x.strainCache = value
+			return x
+		},
+	)
+	clientPlasmidCacheLens = L.MakeLens(
+		func(x Client) *expirable.LRU[string, PlasmidDetail] { return x.plasmidCache },
+		func(x Client, value *expirable.LRU[string, PlasmidDetail]) Client {
+			x.plasmidCache = value
+			return x
+		},
+	)
+	phenotypeListFailureTermLens = L.MakeLens(
+		func(x phenotypeListFailure) string { return x.term },
+		func(x phenotypeListFailure, value string) phenotypeListFailure {
+			x.term = value
+			return x
+		},
+	)
+	phenotypeListFailureErrLens = L.MakeLens(
+		func(x phenotypeListFailure) error { return x.err },
+		func(x phenotypeListFailure, value error) phenotypeListFailure {
+			x.err = value
+			return x
+		},
+	)
 	toGeneStrainItems = F.Flow2(
 		func(q *strainsWithGeneQuery) []GeneStrainItem { return q.ListStrainsWithGene },
 		nonNilSlice[GeneStrainItem],
@@ -345,36 +438,38 @@ func emptySlice[T any]() []T {
 }
 
 func nonNilSlice[T any](items []T) []T {
-	hasElem := predarrays.IsNonEmpty[T]()
 	return F.Pipe2(
 		items,
-		O.FromPredicate(hasElem),
+		O.FromPredicate(predarrays.IsNonEmpty[T]()),
 		O.GetOrElse(emptySlice[T]),
 	)
 }
 
 func toAutocompleteResult(q *listStockSuggestionsQuery) AutocompleteResult {
-	return AutocompleteResult{
-		Suggestions: nonNilSlice(q.ListStockSuggestions.Suggestions),
-		Limit:       q.ListStockSuggestions.Limit,
-		TotalCount:  q.ListStockSuggestions.TotalCount,
-	}
+	return F.Pipe3(
+		AutocompleteResult{},
+		autocompleteResultSuggestionsLens.Set(nonNilSlice(q.ListStockSuggestions.Suggestions)),
+		autocompleteResultLimitLens.Set(q.ListStockSuggestions.Limit),
+		autocompleteResultTotalCountLens.Set(q.ListStockSuggestions.TotalCount),
+	)
 }
 
 func toSearchResult(q *searchStocksQuery) SearchResult {
-	return SearchResult{
-		Results:    nonNilSlice(q.SearchStocks.Results),
-		Limit:      q.SearchStocks.Limit,
-		TotalCount: q.SearchStocks.TotalCount,
-	}
+	return F.Pipe3(
+		SearchResult{},
+		searchResultResultsLens.Set(nonNilSlice(q.SearchStocks.Results)),
+		searchResultLimitLens.Set(q.SearchStocks.Limit),
+		searchResultTotalCountLens.Set(q.SearchStocks.TotalCount),
+	)
 }
 
 func toPhenotypeSearchResult(q *searchPhenotypesQuery) SearchResult {
-	return SearchResult{
-		Results:    nonNilSlice(q.SearchPhenotypes.Results),
-		Limit:      q.SearchPhenotypes.Limit,
-		TotalCount: q.SearchPhenotypes.TotalCount,
-	}
+	return F.Pipe3(
+		SearchResult{},
+		searchResultResultsLens.Set(nonNilSlice(q.SearchPhenotypes.Results)),
+		searchResultLimitLens.Set(q.SearchPhenotypes.Limit),
+		searchResultTotalCountLens.Set(q.SearchPhenotypes.TotalCount),
+	)
 }
 
 func normalizePublicationRef(pub PublicationRef) PublicationRef {
@@ -440,15 +535,16 @@ func phenotypeStrainID(item PhenotypeStrainItem) string { return item.ID }
 // toPhenotypeStrainList keeps the first row of each strain, because one
 // upstream page can repeat a strain. The order stays.
 func toPhenotypeStrainList(q *listStrainsWithPhenotypeQuery) PhenotypeStrainList {
-	return PhenotypeStrainList{
-		Strains: F.Pipe3(
+	return F.Pipe2(
+		PhenotypeStrainList{},
+		phenotypeStrainListStrainsLens.Set(F.Pipe3(
 			q.ListStrainsWithAnnotation.Strains,
 			A.Uniq(phenotypeStrainID),
 			A.Map(normalizePhenotypeStrainItem),
 			nonNilSlice[PhenotypeStrainItem],
-		),
-		NextCursor: q.ListStrainsWithAnnotation.NextCursor,
-	}
+		)),
+		phenotypeStrainListNextCursorLens.Set(q.ListStrainsWithAnnotation.NextCursor),
+	)
 }
 
 func toGeneInfo(q *geneInfoQuery) GeneInfo {

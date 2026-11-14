@@ -132,16 +132,13 @@ func normalizeEntityString(raw string) string {
 }
 
 func parseEntity(raw string) E.Either[error, string] {
-	norm := normalizeEntityString(raw)
-	lookup := R.Lookup[graphql.StockEntityType](norm)
-	toErr := F.Constant(fmt.Errorf(
-		"invalid entity %q: expected ALL, STRAIN, or PLASMID",
-		raw,
-	))
 	return F.Pipe3(
 		knownEntities,
-		lookup,
-		E.FromOption[graphql.StockEntityType](toErr),
+		R.Lookup[graphql.StockEntityType](normalizeEntityString(raw)),
+		E.FromOption[graphql.StockEntityType](F.Constant(fmt.Errorf(
+			"invalid entity %q: expected ALL, STRAIN, or PLASMID",
+			raw,
+		))),
 		E.Map[error](func(et graphql.StockEntityType) string {
 			return string(et)
 		}),
@@ -245,14 +242,13 @@ func normalizeDetailString(raw string) string {
 }
 
 func parseDetail(raw string) E.Either[error, string] {
-	toErr := F.Constant(fmt.Errorf(
-		"invalid detail %q: expected summary or full",
-		raw,
-	))
 	return F.Pipe2(
 		knownDetails,
 		R.Lookup[string](normalizeDetailString(raw)),
-		E.FromOption[string](toErr),
+		E.FromOption[string](F.Constant(fmt.Errorf(
+			"invalid detail %q: expected summary or full",
+			raw,
+		))),
 	)
 }
 

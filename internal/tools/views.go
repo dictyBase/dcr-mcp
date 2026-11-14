@@ -127,6 +127,55 @@ type (
 const fastaFormat = "fasta"
 
 var (
+	searchHitFieldLens = L.MakeLens(
+		func(x graphql.StockSearchHit) string { return x.Field },
+		func(x graphql.StockSearchHit, value string) graphql.StockSearchHit {
+			x.Field = value
+			return x
+		},
+	)
+	searchHitDisplayTextLens = L.MakeLens(
+		func(x graphql.StockSearchHit) string { return x.DisplayText },
+		func(x graphql.StockSearchHit, value string) graphql.StockSearchHit {
+			x.DisplayText = value
+			return x
+		},
+	)
+	matchKeyFieldLens = L.MakeLens(
+		func(x matchKey) string { return x.field },
+		func(x matchKey, value string) matchKey {
+			x.field = value
+			return x
+		},
+	)
+	matchKeyDisplayTextLens = L.MakeLens(
+		func(x matchKey) string { return x.displayText },
+		func(x matchKey, value string) matchKey {
+			x.displayText = value
+			return x
+		},
+	)
+	matchedTextViewFieldLens = L.MakeLens(
+		func(x MatchedTextView) string { return x.Field },
+		func(x MatchedTextView, value string) MatchedTextView {
+			x.Field = value
+			return x
+		},
+	)
+	matchedTextViewDisplayTextLens = L.MakeLens(
+		func(x MatchedTextView) string { return x.DisplayText },
+		func(x MatchedTextView, value string) MatchedTextView {
+			x.DisplayText = value
+			return x
+		},
+	)
+	matchedTextViewStrainCountLens = L.MakeLens(
+		func(x MatchedTextView) int { return x.StrainCount },
+		func(x MatchedTextView, value int) MatchedTextView {
+			x.StrainCount = value
+			return x
+		},
+	)
 	strainViewPublicationsLens = L.MakeLens(
 		func(v StrainView) []PublicationRefView { return v.Publications },
 		func(v StrainView, items []PublicationRefView) StrainView {
@@ -752,8 +801,6 @@ var (
 		P.ContraMap(plasmidDetailSequenceLens.Get),
 	)
 
-	toMatchedTextView = F.Curry2(matchedTextView)
-
 	hasNextPage = P.IsNonZero[int64]()
 
 	strainViewGenotypesLens = L.MakeLens(
@@ -925,10 +972,9 @@ func emptySlice[T any]() []T { return make([]T, 0) }
 // notNilSlice keeps JSON output [] instead of null, because fp-go A.Map and
 // A.Uniq return nil for an empty input.
 func notNilSlice[T any](items []T) []T {
-	hasElem := predarrays.IsNonEmpty[T]()
 	return F.Pipe2(
 		items,
-		O.FromPredicate(hasElem),
+		O.FromPredicate(predarrays.IsNonEmpty[T]()),
 		O.GetOrElse(emptySlice[T]),
 	)
 }
@@ -1076,7 +1122,11 @@ func toPhenotypeStrainView(links linkout.Links, item graphql.PhenotypeStrainItem
 }
 
 func hitMatchKey(h graphql.StockSearchHit) matchKey {
-	return matchKey{field: h.Field, displayText: h.DisplayText}
+	return F.Pipe2(
+		matchKey{},
+		matchKeyFieldLens.Set(searchHitFieldLens.Get(h)),
+		matchKeyDisplayTextLens.Set(searchHitDisplayTextLens.Get(h)),
+	)
 }
 
 // countMatch is the reducer of toMatchedTexts. It writes only to the map that
@@ -1087,21 +1137,22 @@ func countMatch(counts map[matchKey]int, h graphql.StockSearchHit) map[matchKey]
 }
 
 func matchedTextView(counts map[matchKey]int, h graphql.StockSearchHit) MatchedTextView {
-	return MatchedTextView{
-		Field:       h.Field,
-		DisplayText: h.DisplayText,
-		StrainCount: counts[hitMatchKey(h)],
-	}
+	return F.Pipe3(
+		MatchedTextView{},
+		matchedTextViewFieldLens.Set(searchHitFieldLens.Get(h)),
+		matchedTextViewDisplayTextLens.Set(searchHitDisplayTextLens.Get(h)),
+		matchedTextViewStrainCountLens.Set(counts[hitMatchKey(h)]),
+	)
 }
 
 // toMatchedTexts groups ranked rows by matched text in first-seen order, so
 // the most relevant text comes first.
 func toMatchedTexts(hits []graphql.StockSearchHit) []MatchedTextView {
-	counts := F.Pipe1(hits, A.Reduce(countMatch, make(map[matchKey]int)))
 	return F.Pipe3(
 		hits,
 		A.Uniq(hitMatchKey),
-		A.Map(F.Pipe1(counts, toMatchedTextView)),
+		// Count every row per matched text, then attach the count to each unique text.
+		A.Map(F.Bind1st(matchedTextView, F.Pipe1(hits, A.Reduce(countMatch, make(map[matchKey]int))))),
 		notNilSlice[MatchedTextView],
 	)
 }

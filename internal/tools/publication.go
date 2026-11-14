@@ -237,7 +237,7 @@ func newGetPublicationHandler(
 			ioeutils.ToEither[error, PublicationView],
 			E.Fold(
 				toOutcomeError[PublicationView],
-				toOutcomeWithMarkdown(renderPublicationMarkdown),
+				F.Bind1st(toOutcomeWithMarkdown[PublicationView], renderPublicationMarkdown),
 			),
 		)
 		return out.Result, out.Output, out.Err
