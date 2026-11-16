@@ -1,0 +1,48 @@
+name: Release ChatGPT plugin ZIP
+on:
+  push:
+    tags:
+      - 'v[0-9]*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dicty-plugin-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    if: github.event.created
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build the plugin ZIP
+        id: package
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          asset="$(python3 plugin/build_zip.py "$RELEASE_TAG" dist)"
+          printf 'asset=%s\n' "$asset" >> "$GITHUB_OUTPUT"
+      - name: Attach the ZIP to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          ASSET: ${{ steps.package.outputs.asset }}
+        run: |
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            name="$(basename "$ASSET")"
+            existing_assets="$(gh release view "$RELEASE_TAG" --json assets --jq '.assets[] | select(.state == "uploaded") | .name')"
+            if ! grep -Fxq -- "$name" <<< "$existing_assets"; then
+              gh release upload "$RELEASE_TAG" "$ASSET"
+            fi
+          else
+            flags=(--verify-tag --generate-notes)
+            if [[ "${RELEASE_TAG%%+*}" == *-* ]]; then
+              flags+=(--prerelease)
+            fi
+            gh release create "$RELEASE_TAG" "$ASSET" "${flags[@]}"
+          fi

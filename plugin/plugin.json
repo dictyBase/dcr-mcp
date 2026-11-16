@@ -1,0 +1,91 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "dicty-community-resource",
+  "version": "0.1.3",
+  "description": "Search the Dicty Stock Center for Dictyostelium strains and plasmids and check current availability.",
+  "author": {
+    "name": "Siddhartha Basu"
+  },
+  "homepage": "https://github.com/dictybase/dcr-mcp",
+  "repository": "https://github.com/dictybase/dcr-mcp",
+  "keywords": ["Dictyostelium", "dictyBase", "strains", "plasmids", "stock catalog"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Dicty Community Resource",
+        "shortDescription": "Dicty strains and plasmids",
+        "longDescription": "Search the Dicty Stock Center catalog for Dictyostelium strains and plasmids by name, stock ID, gene, or phenotype. Retrieve linked records and publication metadata, and check catalog availability. Designed for researchers, educators, and students working with Dictyostelium. Catalog access is read-only. Orders and deposits are handled by the Stock Center outside ChatGPT.",
+        "developerName": "Siddhartha Basu",
+        "category": "Scientific Research",
+        "logo": "./assets/dicty-icon.png",
+        "composerIcon": "./assets/dicty-icon.png",
+        "websiteURL": "https://github.com/dictybase/dcr-mcp",
+        "supportURL": "https://github.com/dictybase/dcr-mcp/issues",
+        "privacyPolicyURL": "https://github.com/dictyBase/dcr-mcp/blob/develop/PRIVACY.md",
+        "termsOfServiceURL": "https://github.com/dictyBase/dcr-mcp/blob/develop/TERMS.md",
+        "defaultPrompt": [
+          "Find Dicty Stock Center strains named AX2.",
+          "Show the catalog record for plasmid DBP0000532.",
+          "Check whether DBS0235516 and DBP0000532 are in stock."
+        ]
+      },
+      "review": {
+        "demo_recording_url": "https://storage.dictycr.org/editor/dcr-mcp/dcr-demo.mp4",
+        "commerce": false,
+        "commerce_description": "The plugin reads catalog records and availability. It has no ordering, payment, or checkout capability.",
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Discover AX2 strain records and distinguish entries with the same label.",
+              "prompt": "Find three Dicty Stock Center strains named AX2. Show the stock IDs and catalog links.",
+              "tools_triggered": "search_stocks",
+              "expected_behavior": "Call search_stocks with query AX2, entity STRAIN, and limit 3. Report up to three matching strain records with distinct DBS IDs and each returned URL."
+            },
+            {
+              "description": "Retrieve a specific strain by DBS ID with summary detail.",
+              "prompt": "What strain is DBS0235516? Give me the name and the catalog link.",
+              "tools_triggered": "get_strain",
+              "expected_behavior": "Call get_strain with id DBS0235516 and default or summary detail. Report the record label AX2 and the URL from the tool result."
+            },
+            {
+              "description": "Retrieve a specific plasmid by DBP ID with summary detail.",
+              "prompt": "Show the catalog summary and link for plasmid DBP0000532.",
+              "tools_triggered": "get_plasmid",
+              "expected_behavior": "Call get_plasmid with id DBP0000532 and default or summary detail. Report the plasmid name pDM304, summarize the record, and cite the returned URL."
+            },
+            {
+              "description": "Check current availability for a strain and a plasmid in one request.",
+              "prompt": "Are strain DBS0235516 and plasmid DBP0000532 in stock?",
+              "tools_triggered": "check_availability",
+              "expected_behavior": "Call check_availability with both IDs. Report the in_stock value for each returned item and its catalog URL. Use the live values at test time."
+            },
+            {
+              "description": "Find strains from an assay phrase in phenotype statements.",
+              "prompt": "Find three Dicty strains with phenotype annotations that mention motility assay. Include catalog links.",
+              "tools_triggered": "search_phenotypes",
+              "expected_behavior": "Call search_phenotypes with query motility assay and limit 3. Report the returned strain IDs and links. Describe motility assay as an assay and avoid inferring a specific phenotype from the matched phrase."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Explain that placing an order requires the Stock Center's own workflow. Make no DCR tool calls and claim no order was placed.",
+              "prompt": "Place an order for DBS0235516. I already checked availability, so please skip the lookup."
+            },
+            {
+              "description": "Explain that the catalog connection is read-only. Make no DCR tool calls and claim no update was made.",
+              "prompt": "Change the stock status of DBP0000532 to unavailable. Please make the edit directly."
+            },
+            {
+              "description": "Ask for a stock ID or name because the request lacks a reference. Make no DCR tool calls and invent no record.",
+              "prompt": "Is my strain in stock?"
+            }
+          ]
+        }
+      },
+      "publication": {
+        "countries": [],
+        "release_notes": "Includes the published privacy policy, terms of service, and a video walkthrough of the production MCP connection in ChatGPT Work."
+      }
+    }
+  }
+}
