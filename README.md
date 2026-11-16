@@ -401,3 +401,20 @@ go run . start-server \
 ## CI
 
 Workflows: test on push to develop, lint and coverage on pull requests, dependabot, and Kodiak automerge for dependabot upgrades.
+
+### ChatGPT plugin releases
+
+Push a semantic version tag such as `v0.1.4` on a commit containing the plugin
+workflow. GitHub Actions packages the files in `plugin/`, sets the manifest
+version to `0.1.4`, and attaches `dicty-community-resource-v0.1.4.zip` to
+that tag's GitHub release. It creates the GitHub release if needed. Tags
+with prerelease versions create prereleases.
+
+To build the same ZIP locally without pushing a tag or triggering a deployment:
+
+```bash
+python3 plugin/build_zip.py v0.1.4 dist
+```
+
+To publish the ZIP in the public ChatGPT directory, submit the GitHub release
+asset separately through the [OpenAI Platform Plugins dashboard](https://platform.openai.com/plugins).
