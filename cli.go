@@ -47,14 +47,15 @@ type (
 )
 
 const (
-	flagLinkoutBaseURL = "linkout-base-url"
-	defaultGraphQLPort = "8080"
-	defaultHost        = "0.0.0.0"
-	defaultPort        = 8080
-	maxTCPPort         = 65535
-	defaultRateLimit   = 120
-	readHeaderTimeout  = 10 * time.Second
-	shutdownTimeout    = 5 * time.Second
+	flagLinkoutBaseURL  = "linkout-base-url"
+	flagOpenAIChallenge = "openai-apps-challenge"
+	defaultGraphQLPort  = "8080"
+	defaultHost         = "0.0.0.0"
+	defaultPort         = 8080
+	maxTCPPort          = 65535
+	defaultRateLimit    = 120
+	readHeaderTimeout   = 10 * time.Second
+	shutdownTimeout     = 5 * time.Second
 
 	appName        = "dcr-mcp"
 	startServerCmd = "start-server"
@@ -293,9 +294,13 @@ var (
 		},
 	)
 
-	stateEndpointLens = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigEndpointLens))
-	statePortLens     = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigPortLens))
-	stateRateLens     = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigRateLimitLens))
+	stateEndpointLens  = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigEndpointLens))
+	statePortLens      = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigPortLens))
+	stateRateLens      = F.Pipe1(stateCfgLens, L.Compose[serverState](server.ConfigRateLimitLens))
+	stateChallengeLens = F.Pipe1(
+		stateCfgLens,
+		L.Compose[serverState](server.ConfigOpenAIChallengeLens),
+	)
 
 	isPositiveInt = F.Pipe1(1, ORD.Geq(predord.IntOrd))
 
@@ -371,7 +376,7 @@ func seedServerState(in ServerActionInput) serverState {
 	host := in.Command.String(flagHost)
 	port := in.Command.Int(flagPort)
 
-	return F.Pipe10(
+	return F.Pipe11(
 		serverState{},
 		stateCtxLens.Set(in.Context),
 		stateCmdLens.Set(in.Command),
@@ -383,6 +388,7 @@ func seedServerState(in ServerActionInput) serverState {
 		stateStatelessLens.Set(in.Command.Bool(flagStateless)),
 		stateOriginsLens.Set(in.Command.StringSlice(flagAllowedOrigins)),
 		stateRateLens.Set(in.Command.Int(flagRateLimit)),
+		stateChallengeLens.Set(strings.TrimSpace(in.Command.String(flagOpenAIChallenge))),
 	)
 }
 
@@ -507,6 +513,12 @@ func serverFlags() []cli.Flag {
 			intFlagValueLens.Set(defaultRateLimit),
 			intFlagUsageLens.Set("Maximum /mcp requests per client IP per minute"),
 			intFlagSourcesLens.Set(cli.EnvVars("MCP_RATE_LIMIT")),
+		)),
+		new(F.Pipe3(
+			cli.StringFlag{},
+			stringFlagNameLens.Set(flagOpenAIChallenge),
+			stringFlagUsageLens.Set("OpenAI Apps domain verification token; empty disables the route"),
+			stringFlagSourcesLens.Set(cli.EnvVars("OPENAI_APPS_CHALLENGE_TOKEN")),
 		)),
 	}
 }
