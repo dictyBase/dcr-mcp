@@ -376,6 +376,7 @@ The `serve` and `start` subcommands are aliases for `start-server`. Open `/healt
 | `--allowed-origins` | `ALLOWED_ORIGINS` | `*` | Allowed CORS origins for browser-based MCP clients. |
 | `--rate-limit` | `MCP_RATE_LIMIT` | `120` | Maximum `/mcp` requests for each client IP each minute (`>= 1`). |
 | `--linkout-base-url` | *(none)* | `https://dictybase.dev` | Public website for gene, strain, plasmid, and publication links. |
+| `--openai-apps-challenge` | `OPENAI_APPS_CHALLENGE_TOKEN` | *(none)* | OpenAI Apps domain verification token. The server returns it as plain text at `/.well-known/openai-apps-challenge`. Empty disables the route. |
 
 The public website uses `/gene/{id}`, `/stockcenter/strains/{id}`, `/stockcenter/plasmids/{id}`, and `/publication/{id}`.
 The `--linkout-base-url` option changes these website links.

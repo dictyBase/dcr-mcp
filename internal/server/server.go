@@ -12,6 +12,7 @@ import (
 	L "github.com/IBM/fp-go/v2/optics/lens"
 	O "github.com/IBM/fp-go/v2/option"
 	P "github.com/IBM/fp-go/v2/predicate"
+	S "github.com/IBM/fp-go/v2/string"
 	predarrays "github.com/dictyBase/fp-go-loom/predicate/array"
 	"github.com/dictybase/dcr-mcp/internal/graphql"
 	"github.com/dictybase/dcr-mcp/internal/linkout"
@@ -24,28 +25,38 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Config holds HTTP and GraphQL configuration for the MCP server.
-type Config struct {
-	GraphQLEndpoint string
-	Host            string
-	Port            int
-	Stateless       bool
-	AllowedOrigins  []string
-	// RateLimit is the max /mcp requests per client IP per minute; 0 uses the default.
-	RateLimit int
-	// Linkouts builds public website links. The zero value uses
-	// linkout.DefaultBaseURL.
-	Linkouts linkout.Links
-}
+type (
+	// Config holds HTTP and GraphQL configuration for the MCP server.
+	Config struct {
+		GraphQLEndpoint string
+		Host            string
+		Port            int
+		Stateless       bool
+		AllowedOrigins  []string
+		// RateLimit is the max /mcp requests per client IP per minute; 0 uses the default.
+		RateLimit int
+		// Linkouts builds public website links. The zero value uses
+		// linkout.DefaultBaseURL.
+		Linkouts linkout.Links
+		// OpenAIChallenge is the OpenAI Apps domain verification token. An empty
+		// value makes /.well-known/openai-apps-challenge return 404.
+		OpenAIChallenge string
+	}
+
+	// challengeToken serves the OpenAI Apps domain verification token as plain text.
+	challengeToken string
+)
 
 const (
-	serverName        = "dcr-mcp"
-	serverVersion     = "1.1.0"
-	wildcardOrigin    = "*"
-	healthzBody       = `{"status":"ok"}`
-	corsMaxAgeSeconds = 300
-	defaultRateLimit  = 120
-	rateLimitWindow   = time.Minute
+	serverName     = "dcr-mcp"
+	serverVersion  = "1.1.0"
+	wildcardOrigin = "*"
+	healthzBody    = `{"status":"ok"}`
+	// openAIChallengePath is the OpenAI Apps domain verification path.
+	openAIChallengePath = "/.well-known/openai-apps-challenge"
+	corsMaxAgeSeconds   = 300
+	defaultRateLimit    = 120
+	rateLimitWindow     = time.Minute
 
 	serverInstructions = "dcr-mcp gives read-only access to the Dicty Stock Center catalog of Dictyostelium " +
 		"strains (DBS ids) and plasmids (DBP ids). Guidance: " +
@@ -180,6 +191,14 @@ var (
 			return c
 		},
 	)
+	// ConfigOpenAIChallengeLens focuses Config.OpenAIChallenge.
+	ConfigOpenAIChallengeLens = L.MakeLens(
+		func(c Config) string { return c.OpenAIChallenge },
+		func(c Config, token string) Config {
+			c.OpenAIChallenge = token
+			return c
+		},
+	)
 	streamStatelessLens = L.MakeLens(
 		func(o mcp.StreamableHTTPOptions) bool { return o.Stateless },
 		func(o mcp.StreamableHTTPOptions, stateless bool) mcp.StreamableHTTPOptions {
@@ -272,6 +291,24 @@ func healthzHandler(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte(healthzBody))
 }
 
+func (t challengeToken) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(t))
+}
+
+func toChallengeHandler(token string) http.Handler {
+	return challengeToken(token)
+}
+
+func resolveChallengeHandler(token string) http.Handler {
+	return F.Pipe2(
+		token,
+		O.FromPredicate(S.IsNonEmpty),
+		O.Fold(http.NotFoundHandler, toChallengeHandler),
+	)
+}
+
 func resolveRateLimit(limit int) int {
 	return F.Pipe2(
 		limit,
@@ -323,6 +360,11 @@ func NewHTTPHandler(cfg Config) http.Handler {
 	))
 	router.Use(corsMiddleware)
 	router.Get("/healthz", healthzHandler)
+	router.Method(
+		http.MethodGet,
+		openAIChallengePath,
+		resolveChallengeHandler(ConfigOpenAIChallengeLens.Get(cfg)),
+	)
 	router.With(rateLimiter).Handle("/mcp", streamHandler)
 	return router
 }
